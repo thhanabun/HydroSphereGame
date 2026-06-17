@@ -46,6 +46,7 @@ const DAM_COLOR = new Color('#d3ad67');
 const ELEVATION_DAM_COLOR = new Color('#c8d0d8');
 const CONDUIT_COLOR = new Color('#f0a14d');
 const POWERHOUSE_COLOR = new Color('#f3efd8');
+const CONSTRUCTION_COLOR = new Color('#f2d16b');
 const RenderHex = defineHex({
   dimensions: 1,
   orientation: Orientation.POINTY,
@@ -192,13 +193,19 @@ export class HydroRenderer {
       const elevation = Terrain.elevation[cell.eid];
       const targetWaterDepth = Math.max(0, Water.depth[cell.eid]);
       const structureType = Number(Structure.type[cell.eid]);
+      const pendingType = Number(Structure.pendingType[cell.eid]);
+      const displayStructureType =
+        structureType !== StructureCode.none ? structureType : pendingType;
       const previousStructureType =
-        this.previousStructureTypes.get(cell.eid) ?? structureType;
+        this.previousStructureTypes.get(cell.eid) ?? displayStructureType;
 
-      if (previousStructureType !== structureType && structureType !== StructureCode.none) {
+      if (
+        previousStructureType !== displayStructureType &&
+        displayStructureType !== StructureCode.none
+      ) {
         this.structurePulseUntil.set(cell.eid, elapsedSeconds + 1.2);
       }
-      this.previousStructureTypes.set(cell.eid, structureType);
+      this.previousStructureTypes.set(cell.eid, displayStructureType);
 
       const previousDisplayDepth =
         this.displayedWaterDepths.get(cell.eid) ?? targetWaterDepth;
@@ -236,7 +243,8 @@ export class HydroRenderer {
       this.waterMesh.setColorAt(index, this.color);
 
       const hasStructure =
-        Terrain.active[cell.eid] === 1 && structureType !== StructureCode.none;
+        Terrain.active[cell.eid] === 1 &&
+        displayStructureType !== StructureCode.none;
       const structureScale = hasStructure
         ? this.getStructureScale(cell.eid, elapsedSeconds)
         : this.hiddenScale;
@@ -308,51 +316,68 @@ export class HydroRenderer {
 
   private getStructureScale(eid: number, elapsedSeconds: number): Vector3 {
     const structureType = Number(Structure.type[eid]);
+    const pendingType = Number(Structure.pendingType[eid]);
+    const displayStructureType =
+      structureType !== StructureCode.none ? structureType : pendingType;
     const pulseUntil = this.structurePulseUntil.get(eid) ?? 0;
     const pulseRemaining = Math.max(0, pulseUntil - elapsedSeconds);
     const pulse = pulseRemaining > 0 ? 1 + Math.sin(pulseRemaining * 18) * 0.08 : 1;
     const applyPulse = (scale: Vector3): Vector3 =>
       scale.multiplyScalar(pulse).setY(scale.y / pulse);
 
-    if (structureType === StructureCode.none) {
+    if (displayStructureType === StructureCode.none) {
       return this.hiddenScale;
     }
 
-    if (structureType === StructureKind.baseDam) {
-      return applyPulse(
+    const constructionProgress =
+      Structure.constructionTurnsRemaining[eid] > 0
+        ? Math.max(0.28, Math.min(1, Structure.constructionProgress[eid]))
+        : 1;
+    const applyConstructionProgress = (scale: Vector3): Vector3 =>
+      scale.multiply(new Vector3(1, constructionProgress, 1));
+
+    if (displayStructureType === StructureKind.baseDam) {
+      return applyConstructionProgress(applyPulse(
         new Vector3(2.1, 0.72 + Math.max(0.2, Structure.damHeight[eid]) * 0.82, 0.88),
-      );
+      ));
     }
 
-    if (structureType === StructureKind.elevationDam) {
-      return applyPulse(
+    if (displayStructureType === StructureKind.elevationDam) {
+      return applyConstructionProgress(applyPulse(
         new Vector3(1.85, 0.92 + Math.max(0, Structure.level[eid]) * 0.24, 0.78),
-      );
+      ));
     }
 
-    if (structureType === StructureKind.conduit) {
-      return applyPulse(new Vector3(1.95, 0.3, 0.42));
+    if (displayStructureType === StructureKind.conduit) {
+      return applyConstructionProgress(applyPulse(new Vector3(1.95, 0.3, 0.42)));
     }
 
-    if (structureType === StructureKind.powerhouse) {
-      return applyPulse(new Vector3(1.02, 1.18, 1.02));
+    if (displayStructureType === StructureKind.powerhouse) {
+      return applyConstructionProgress(applyPulse(new Vector3(1.02, 1.18, 1.02)));
     }
 
-    return applyPulse(new Vector3(1, 1, 1));
+    return applyConstructionProgress(applyPulse(new Vector3(1, 1, 1)));
   }
 
   private getStructureColor(eid: number): Color {
     const structureType = Number(Structure.type[eid]);
+    const pendingType = Number(Structure.pendingType[eid]);
+    const displayStructureType =
+      structureType !== StructureCode.none ? structureType : pendingType;
 
-    if (structureType === StructureKind.elevationDam) {
+    if (Structure.constructionTurnsRemaining[eid] > 0) {
+      return CONSTRUCTION_COLOR;
+    }
+
+    if (displayStructureType === StructureKind.elevationDam) {
       return ELEVATION_DAM_COLOR;
     }
 
-    if (structureType === StructureKind.conduit) {
+    if (displayStructureType === StructureKind.conduit) {
       return CONDUIT_COLOR;
     }
 
-    if (structureType === StructureKind.powerhouse) {
+    if (displayStructureType === StructureKind.powerhouse) {
       return POWERHOUSE_COLOR;
     }
 

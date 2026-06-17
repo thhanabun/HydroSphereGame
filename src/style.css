@@ -254,6 +254,31 @@ h1 {
   line-height: 1.2;
 }
 
+.advanced-metrics,
+.hint-panel,
+.build-help {
+  margin-top: 12px;
+}
+
+.advanced-metrics summary,
+.hint-panel summary,
+.build-help summary {
+  color: rgba(247, 251, 255, 0.78);
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.advanced-metrics[open] summary,
+.hint-panel[open] summary,
+.build-help[open] summary {
+  color: #7ee2c7;
+}
+
+.hydrology-metrics {
+  margin-top: 10px;
+}
+
 .controls {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -280,6 +305,24 @@ h1 {
   line-height: 1.35;
 }
 
+.level-hint {
+  color: rgba(126, 226, 199, 0.88) !important;
+}
+
+.deadline-label {
+  padding: 7px 9px;
+  border: 1px solid rgba(126, 226, 199, 0.22);
+  border-radius: 6px;
+  background: rgba(126, 226, 199, 0.08);
+  color: rgba(247, 251, 255, 0.82) !important;
+  font-weight: 800;
+}
+
+.deadline-label.is-warning {
+  border-color: rgba(255, 196, 92, 0.44);
+  background: rgba(255, 196, 92, 0.12);
+}
+
 #objectiveList {
   display: grid;
   gap: 4px;
@@ -291,6 +334,39 @@ h1 {
 
 #objectiveList li.is-complete {
   color: #7ee2c7;
+}
+
+#objectiveList li.is-warning {
+  color: #ffc45c;
+}
+
+.hint-panel {
+  padding: 12px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.hint-panel h3 {
+  margin: 10px 0 6px;
+  color: rgba(247, 251, 255, 0.74);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+}
+
+.hint-panel ul,
+.build-help ul {
+  display: grid;
+  gap: 6px;
+  margin: 8px 0 0;
+  padding-left: 18px;
+  color: rgba(247, 251, 255, 0.72);
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+.hint-panel strong,
+.build-help strong {
+  color: rgba(247, 251, 255, 0.94);
 }
 
 .phase,
@@ -321,7 +397,16 @@ h1 {
   text-transform: uppercase;
 }
 
-#pendingBuildList {
+.plan-summary h3 {
+  margin: 12px 0 8px;
+  color: rgba(247, 251, 255, 0.64);
+  font-size: 0.74rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+#pendingBuildList,
+#activeConstructionList {
   display: grid;
   gap: 7px;
   margin: 0;
@@ -332,14 +417,16 @@ h1 {
   line-height: 1.35;
 }
 
-#pendingBuildList li {
+#pendingBuildList li,
+#activeConstructionList li {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
 }
 
-#pendingBuildList li.empty-plan {
+#pendingBuildList li.empty-plan,
+#activeConstructionList li.empty-plan {
   display: block;
   color: rgba(247, 251, 255, 0.56);
 }

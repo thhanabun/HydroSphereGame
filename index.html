@@ -16,11 +16,11 @@
           </div>
           <h2>Campaign Levels</h2>
           <div class="level-list">
-            <button data-level-id="level-1" type="button">1. First Reservoir</button>
-            <button data-level-id="level-2" type="button">2. Turbine Contract</button>
-            <button data-level-id="level-3" type="button">3. Irrigation Plain</button>
-            <button data-level-id="level-4" type="button">4. Flood Season</button>
-            <button data-level-id="level-5" type="button">5. Balanced Basin</button>
+            <button data-level-id="level-1" type="button">1. First Reservoir - 5 turns</button>
+            <button data-level-id="level-2" type="button">2. Turbine Contract - 6 turns</button>
+            <button data-level-id="level-3" type="button">3. Irrigation Plain - 6 turns</button>
+            <button data-level-id="level-4" type="button">4. Flood Season - 6 turns</button>
+            <button data-level-id="level-5" type="button">5. Balanced Basin - 8 turns</button>
           </div>
         </div>
       </section>
@@ -36,23 +36,11 @@
             <strong id="weatherLabel">Sunny</strong>
           </div>
           <div>
-            <span>Total Water</span>
-            <strong id="waterLabel">0.00 m</strong>
-          </div>
-          <div>
-            <span>Max Depth</span>
-            <strong id="depthLabel">0.00 m</strong>
-          </div>
-          <div>
-            <span>Max Flow</span>
-            <strong id="flowLabel">0.00 m3/s</strong>
-          </div>
-          <div>
             <span>Credits</span>
             <strong id="creditsLabel">0</strong>
           </div>
           <div>
-            <span>Reservoir</span>
+            <span>Stored Water</span>
             <strong id="reservoirLabel">0 m3</strong>
           </div>
           <div>
@@ -72,6 +60,23 @@
             <strong id="mixersLabel">0</strong>
           </div>
         </section>
+        <details class="advanced-metrics">
+          <summary>Hydrology details</summary>
+          <section class="metrics hydrology-metrics">
+            <div>
+              <span>Total Water</span>
+              <strong id="waterLabel">0.00 m</strong>
+            </div>
+            <div>
+              <span>Max Depth</span>
+              <strong id="depthLabel">0.00 m</strong>
+            </div>
+            <div>
+              <span>Max Flow</span>
+              <strong id="flowLabel">0.00 m3/s</strong>
+            </div>
+          </section>
+        </details>
         <section class="controls">
           <button id="stormButton" type="button">Storm Pulse</button>
           <button id="resetButton" type="button">Reset Basin</button>
@@ -89,6 +94,10 @@
             <li class="empty-plan">No build orders queued</li>
           </ol>
           <p id="planCostLabel">Plan cost: 0 cr, 0 eng, 0 exc, 0 mix</p>
+          <h3>Under Construction</h3>
+          <ol id="activeConstructionList">
+            <li class="empty-plan">No active construction</li>
+          </ol>
         </section>
       </aside>
       <section id="turnRunner" class="turn-runner" aria-live="polite" hidden>
@@ -105,8 +114,34 @@
         <section class="objective-panel" aria-label="Current objective">
           <h2 id="levelTitle">Sandbox Basin</h2>
           <p id="levelDescription">Open-ended basin management.</p>
+          <p id="levelHint" class="level-hint">Experiment freely. Build orders resolve on Commit.</p>
+          <p id="objectiveDeadlineLabel" class="deadline-label">Sandbox mode</p>
           <ul id="objectiveList"></ul>
         </section>
+        <details class="hint-panel">
+          <summary>Construction and value hints</summary>
+          <section>
+            <h3>Construction</h3>
+            <ul>
+              <li><strong>Base Dam</strong> stores water as a reserve and slows discharge until water exceeds capacity.</li>
+              <li><strong>Elevation Dam</strong> upgrades an existing dam so it can hold deeper water.</li>
+              <li><strong>Conduit</strong> opens faster transfer routes and supplies irrigation to adjacent damp cells.</li>
+              <li><strong>Powerhouse</strong> converts usable flow into hydropower income.</li>
+            </ul>
+          </section>
+          <section>
+            <h3>Values</h3>
+            <ul>
+              <li><strong>Credits</strong> pay construction costs and are gained from hydropower and irrigation.</li>
+              <li><strong>Engineers</strong> limit how many build orders can be committed this turn.</li>
+              <li><strong>Excavators/Mixers</strong> are locked until the construction job finishes.</li>
+              <li><strong>Stored Water</strong> is your water reserve behind dams, measured as volume.</li>
+              <li><strong>Hold turns</strong> mean the reserve must stay valid for several resolved turns.</li>
+              <li><strong>Net Income</strong> is last turn income minus flood or drought penalties.</li>
+              <li><strong>Hydrology details</strong> show water depth and flow for debugging basin behavior.</li>
+            </ul>
+          </section>
+        </details>
         <section class="event-panel" aria-label="Event log">
           <h2>Events</h2>
           <ol id="eventLog"></ol>
@@ -120,6 +155,15 @@
           </button>
         </header>
         <p id="selectedCellDetails" class="cell-details">Elev 0.00 m | Water 0.00 m | Empty</p>
+        <details class="build-help">
+          <summary>What can I build here?</summary>
+          <ul>
+            <li>Base Dam: first water storage structure; it protects water, not income.</li>
+            <li>Elevation Dam: only works on a cell that already has a dam.</li>
+            <li>Conduit: moves water toward farms or turbines and helps adjacent damp cells count for irrigation.</li>
+            <li>Powerhouse: earns hydropower credits from flow.</li>
+          </ul>
+        </details>
         <div class="build-options">
           <button id="buildBaseDamButton" type="button">Base Dam - 220 cr</button>
           <button id="buildElevationDamButton" type="button">Elevation Dam - 160 cr</button>
@@ -150,8 +194,8 @@
           <h2 id="outcomeTitle">Mission Result</h2>
           <p id="outcomeMessage">Round complete.</p>
           <div class="menu-actions">
-            <button id="retryLevelButton" type="button">Retry Level</button>
-            <button id="outcomeMenuButton" type="button">Back to Menu</button>
+            <button id="outcomePrimaryButton" type="button">Retry Level</button>
+            <button id="outcomeMenuButton" type="button">Menu</button>
           </div>
         </div>
       </section>

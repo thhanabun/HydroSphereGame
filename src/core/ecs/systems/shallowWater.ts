@@ -44,6 +44,22 @@ const getDamHeight = (eid: number): number =>
 const getReservoirHoldDepth = (eid: number): number =>
   isDamStructure(eid) ? Math.max(0, StructureComponent.maxWaterDepth[eid]) : 0;
 
+const getFlowConductanceMultiplier = (eid: number): number => {
+  if (StructureComponent.active[eid] !== 1) {
+    return 1;
+  }
+
+  if (StructureComponent.type[eid] === StructureKind.conduit) {
+    return 1.45;
+  }
+
+  if (StructureComponent.type[eid] === StructureKind.powerhouse) {
+    return 1.12;
+  }
+
+  return 1;
+};
+
 const getTotalHydraulicHead = (eid: number): number =>
   Terrain.elevation[eid] + Math.max(0, Water.depth[eid]) + getDamHeight(eid);
 
@@ -114,6 +130,7 @@ export const ShallowWaterSystem = (
       ? Math.max(0, waterDepth - reservoirHoldDepth)
       : waterDepth;
     const availableVolume = spillableDepth * cellArea;
+    const effectivePipeArea = pipeArea * getFlowConductanceMultiplier(eid);
     let outgoingFlowSum = 0;
 
     Water.hydraulicHead[eid] = hydraulicHead;
@@ -137,7 +154,7 @@ export const ShallowWaterSystem = (
       const rawCandidateFlow = Math.max(
         0,
         previousFlow +
-          (deltaTimeSeconds * gravity * pipeArea * headDelta) / pipeLength,
+          (deltaTimeSeconds * gravity * effectivePipeArea * headDelta) / pipeLength,
       );
       const candidateFlow =
         isDamStructure(eid) && StructureComponent.dischargeCapacity[eid] > 0

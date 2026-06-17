@@ -1,15 +1,21 @@
 import { defineQuery, type IWorld } from 'bitecs';
 
 import {
+  HEX_DIRECTION_COUNT,
+  NO_NEIGHBOR,
   PlayerResourceComponent,
   StructureComponent,
   StructureKind,
   Terrain,
   Water,
+  getFlow,
+  oppositeDirection,
 } from '../components';
 
 export interface ResourceEconomyInput {
   readonly playerResourceEid: number;
+  readonly neighborEids?: Int32Array;
+  readonly directionCount?: 4 | typeof HEX_DIRECTION_COUNT;
 }
 
 export interface ResourceEconomyReport {
@@ -37,6 +43,133 @@ const isDam = (eid: number): boolean =>
 const isPowerhouse = (eid: number): boolean =>
   StructureComponent.active[eid] === 1 &&
   StructureComponent.type[eid] === StructureKind.powerhouse;
+
+const isConduit = (eid: number): boolean =>
+  StructureComponent.active[eid] === 1 &&
+  StructureComponent.type[eid] === StructureKind.conduit;
+
+const getNeighborEid = (
+  input: ResourceEconomyInput,
+  eid: number,
+  direction: number,
+): number => {
+  const directionCount = input.directionCount ?? HEX_DIRECTION_COUNT;
+
+  return input.neighborEids?.[eid * directionCount + direction] ?? NO_NEIGHBOR;
+};
+
+const hasConduitIrrigationSupport = (
+  input: ResourceEconomyInput,
+  eid: number,
+): boolean => {
+  if (isConduit(eid)) {
+    return true;
+  }
+
+  if (!input.neighborEids) {
+    return false;
+  }
+
+  const directionCount = input.directionCount ?? HEX_DIRECTION_COUNT;
+
+  for (let direction = 0; direction < directionCount; direction += 1) {
+    const neighborEid = getNeighborEid(input, eid, direction);
+
+    if (neighborEid !== NO_NEIGHBOR && Terrain.active[neighborEid] === 1) {
+      if (isConduit(neighborEid)) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+};
+
+const getOppositeDirection = (
+  directionCount: 4 | typeof HEX_DIRECTION_COUNT,
+  direction: number,
+): number =>
+  directionCount === HEX_DIRECTION_COUNT
+    ? oppositeDirection(direction)
+    : (direction + directionCount / 2) % directionCount;
+
+const getReservoirReleasePotential = (
+  input: ResourceEconomyInput,
+  powerhouseEid: number,
+): number => {
+  if (!input.neighborEids) {
+    return 0;
+  }
+
+  const directionCount = input.directionCount ?? HEX_DIRECTION_COUNT;
+  const powerhouseHead =
+    Terrain.elevation[powerhouseEid] + Math.max(0, Water.depth[powerhouseEid]);
+  let releasePotential = 0;
+
+  for (let direction = 0; direction < directionCount; direction += 1) {
+    const neighborEid = getNeighborEid(input, powerhouseEid, direction);
+
+    if (neighborEid === NO_NEIGHBOR || Terrain.active[neighborEid] === 0) {
+      continue;
+    }
+
+    if (!isDam(neighborEid)) {
+      continue;
+    }
+
+    const storedDepth = Math.min(
+      Math.max(0, Water.depth[neighborEid]),
+      Math.max(0, StructureComponent.maxWaterDepth[neighborEid]),
+    );
+
+    if (storedDepth <= 0) {
+      continue;
+    }
+
+    const damHead =
+      Terrain.elevation[neighborEid] +
+      storedDepth +
+      Math.max(0, StructureComponent.damHeight[neighborEid]);
+    const headDrop = Math.max(0, damHead - powerhouseHead);
+    const intakeFlow = Math.min(
+      Math.max(0, StructureComponent.dischargeCapacity[powerhouseEid]),
+      headDrop * 0.45,
+    );
+
+    if (intakeFlow > releasePotential) {
+      releasePotential = intakeFlow;
+    }
+  }
+
+  return releasePotential;
+};
+
+const getNeighborFlowPotential = (
+  input: ResourceEconomyInput,
+  powerhouseEid: number,
+): number => {
+  if (!input.neighborEids) {
+    return 0;
+  }
+
+  const directionCount = input.directionCount ?? HEX_DIRECTION_COUNT;
+  let neighborFlow = 0;
+
+  for (let direction = 0; direction < directionCount; direction += 1) {
+    const neighborEid = getNeighborEid(input, powerhouseEid, direction);
+
+    if (neighborEid === NO_NEIGHBOR || Terrain.active[neighborEid] === 0) {
+      continue;
+    }
+
+    neighborFlow += getFlow(
+      neighborEid,
+      getOppositeDirection(directionCount, direction),
+    );
+  }
+
+  return neighborFlow;
+};
 
 export const ResourceEconomySystem = (
   world: IWorld,
@@ -76,7 +209,13 @@ export const ResourceEconomySystem = (
 
     if (isPowerhouse(eid)) {
       const usableFlow = Math.min(
-        Math.max(0, Water.inflow[eid] + Water.outflow[eid]),
+        Math.max(
+          0,
+          Water.inflow[eid] +
+            Water.outflow[eid] +
+            getNeighborFlowPotential(input, eid) +
+            getReservoirReleasePotential(input, eid),
+        ),
         Math.max(0, StructureComponent.dischargeCapacity[eid]),
       );
 
@@ -85,7 +224,13 @@ export const ResourceEconomySystem = (
       );
     }
 
-    if (waterDepth >= 0.05 && waterDepth <= 0.55) {
+    const isNaturallyIrrigated = waterDepth >= 0.05 && waterDepth <= 0.55;
+    const isCanalSupplied =
+      hasConduitIrrigationSupport(input, eid) &&
+      waterDepth >= 0.02 &&
+      waterDepth <= 0.65;
+
+    if (isNaturallyIrrigated || isCanalSupplied) {
       productiveIrrigationCells += 1;
       irrigationCredits += 8;
     }

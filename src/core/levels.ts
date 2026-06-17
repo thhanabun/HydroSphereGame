@@ -12,6 +12,7 @@ export interface BasinCellSeed {
 }
 
 export interface LevelObjectives {
+  readonly minResolvedTurns?: number;
   readonly minCredits?: number;
   readonly minReservoirWaterCubicMeters?: number;
   readonly minHydropowerScore?: number;
@@ -36,6 +37,7 @@ export interface LevelDefinition {
   readonly id: string;
   readonly title: string;
   readonly description: string;
+  readonly hint?: string;
   readonly seed: readonly BasinCellSeed[];
   readonly resources: ResourceLoadout;
   readonly objectives: LevelObjectives;
@@ -46,6 +48,7 @@ export const SANDBOX_LEVEL: LevelDefinition = {
   id: 'sandbox',
   title: 'Sandbox Basin',
   description: 'Open-ended basin management with grid expansion enabled.',
+  hint: 'Experiment freely. Build orders only resolve when you commit the turn.',
   allowGridExpansion: true,
   resources: {
     credits: 900,
@@ -159,15 +162,16 @@ export const CAMPAIGN_LEVELS: readonly LevelDefinition[] = [
   {
     id: 'level-1',
     title: '1. First Reservoir',
-    description: 'Store enough water behind a dam without running out of credits.',
+    description: 'Build your first water reserve without running out of credits.',
+    hint: 'Build one Base Dam on the wet low cell q0, r0, then keep the water reserve stable through turn 3.',
     allowGridExpansion: false,
     resources: { credits: 620, engineers: 3, excavators: 2, concreteMixers: 2 },
     objectives: {
+      minResolvedTurns: 3,
       minBuiltBaseDams: 1,
       minReservoirWaterCubicMeters: 120,
-      minCumulativeNetIncomeCredits: 48,
-      minCredits: 250,
-      maxTurns: 3,
+      minCredits: 300,
+      maxTurns: 5,
     },
     seed: withoutInfrastructure(SANDBOX_LEVEL.seed.slice(0, 5)),
   },
@@ -175,6 +179,7 @@ export const CAMPAIGN_LEVELS: readonly LevelDefinition[] = [
     id: 'level-2',
     title: '2. Turbine Contract',
     description: 'Turn stored flow into hydropower revenue.',
+    hint: 'Build a Powerhouse next to the existing dam, such as q-1, r1, so it can use the dam head as a turbine intake. Reservoir storage alone does not create hydropower credits.',
     allowGridExpansion: false,
     resources: { credits: 760, engineers: 4, excavators: 2, concreteMixers: 3 },
     objectives: {
@@ -182,7 +187,7 @@ export const CAMPAIGN_LEVELS: readonly LevelDefinition[] = [
       minHydropowerScore: 30,
       minCumulativeNetIncomeCredits: 55,
       minCredits: 350,
-      maxTurns: 3,
+      maxTurns: 6,
     },
     seed: [
       ...withoutStructureType(
@@ -205,6 +210,7 @@ export const CAMPAIGN_LEVELS: readonly LevelDefinition[] = [
     id: 'level-3',
     title: '3. Irrigation Plain',
     description: 'Keep enough shallow water available for farms.',
+    hint: 'Use a Conduit on q0, r1 or q1, r1 to supply adjacent damp cells. Irrigation likes shallow water, and conduit-supported cells can stay productive at lower depth.',
     allowGridExpansion: true,
     resources: { credits: 700, engineers: 4, excavators: 3, concreteMixers: 2 },
     objectives: {
@@ -212,7 +218,7 @@ export const CAMPAIGN_LEVELS: readonly LevelDefinition[] = [
       minIrrigationScore: 50,
       minCumulativeNetIncomeCredits: 72,
       minCredits: 280,
-      maxTurns: 3,
+      maxTurns: 6,
     },
     seed: [
       ...SANDBOX_LEVEL.seed,
@@ -232,6 +238,7 @@ export const CAMPAIGN_LEVELS: readonly LevelDefinition[] = [
     id: 'level-4',
     title: '4. Flood Season',
     description: 'Survive monsoon water while preserving sustainability.',
+    hint: 'Elevate an existing dam to hold back deeper water, then watch sustainability and flood penalties.',
     allowGridExpansion: true,
     resources: { credits: 840, engineers: 4, excavators: 3, concreteMixers: 3 },
     objectives: {
@@ -239,7 +246,7 @@ export const CAMPAIGN_LEVELS: readonly LevelDefinition[] = [
       minSustainabilityScore: 70,
       minCumulativeNetIncomeCredits: 90,
       minCredits: 300,
-      maxTurns: 3,
+      maxTurns: 6,
     },
     seed: SANDBOX_LEVEL.seed.map((cell) => ({
       ...cell,
@@ -250,6 +257,7 @@ export const CAMPAIGN_LEVELS: readonly LevelDefinition[] = [
     id: 'level-5',
     title: '5. Balanced Basin',
     description: 'Earn credits while balancing hydropower, irrigation, and ecosystem stability.',
+    hint: 'Combine storage, flow, and shallow irrigation. Overbuilding can starve credits and machinery availability.',
     allowGridExpansion: true,
     resources: { credits: 980, engineers: 5, excavators: 4, concreteMixers: 4 },
     objectives: {
@@ -260,7 +268,7 @@ export const CAMPAIGN_LEVELS: readonly LevelDefinition[] = [
       minSustainabilityScore: 65,
       minCumulativeNetIncomeCredits: 100,
       minCredits: 600,
-      maxTurns: 4,
+      maxTurns: 8,
     },
     seed: [
       ...SANDBOX_LEVEL.seed,

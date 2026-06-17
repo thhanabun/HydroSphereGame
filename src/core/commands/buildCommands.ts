@@ -28,7 +28,7 @@ export interface InfrastructureCost {
   readonly engineers: number;
   readonly excavators: number;
   readonly concreteMixers: number;
-  readonly delayTurns: number;
+  readonly buildTurns: number;
   readonly dischargeCapacity: number;
   readonly damHeight: number;
   readonly maxWaterDepth: number;
@@ -41,7 +41,6 @@ export interface BuildCommand {
 }
 
 export const CONSTRUCTION_WHEEL_SLOT_COUNT = 6;
-export const DEFAULT_CONSTRUCTION_DELAY_TURNS = 5;
 
 export const INFRASTRUCTURE_COSTS: Readonly<
   Record<InfrastructureBuildType, InfrastructureCost>
@@ -51,7 +50,7 @@ export const INFRASTRUCTURE_COSTS: Readonly<
     engineers: 1,
     excavators: 1,
     concreteMixers: 1,
-    delayTurns: DEFAULT_CONSTRUCTION_DELAY_TURNS,
+    buildTurns: 2,
     dischargeCapacity: 0.22,
     damHeight: 0.55,
     maxWaterDepth: 0.55,
@@ -61,7 +60,7 @@ export const INFRASTRUCTURE_COSTS: Readonly<
     engineers: 1,
     excavators: 1,
     concreteMixers: 1,
-    delayTurns: DEFAULT_CONSTRUCTION_DELAY_TURNS,
+    buildTurns: 1,
     dischargeCapacity: 0.18,
     damHeight: 0.38,
     maxWaterDepth: 0.38,
@@ -71,7 +70,7 @@ export const INFRASTRUCTURE_COSTS: Readonly<
     engineers: 1,
     excavators: 1,
     concreteMixers: 0,
-    delayTurns: DEFAULT_CONSTRUCTION_DELAY_TURNS,
+    buildTurns: 1,
     dischargeCapacity: 0.34,
     damHeight: 0,
     maxWaterDepth: 0,
@@ -81,7 +80,7 @@ export const INFRASTRUCTURE_COSTS: Readonly<
     engineers: 1,
     excavators: 0,
     concreteMixers: 1,
-    delayTurns: DEFAULT_CONSTRUCTION_DELAY_TURNS,
+    buildTurns: 3,
     dischargeCapacity: 0.3,
     damHeight: 0,
     maxWaterDepth: 0,
@@ -171,12 +170,12 @@ const setSlotLocks = (
 
 const lockMachinery = (
   wheelEid: number,
-  delayTurns: number,
+  buildTurns: number,
   excavators: number,
   concreteMixers: number,
 ): void => {
   const activeSlot = ConstructionWheelComponent.activeSlot[wheelEid] % CONSTRUCTION_WHEEL_SLOT_COUNT;
-  const releaseSlot = (activeSlot + delayTurns) % CONSTRUCTION_WHEEL_SLOT_COUNT;
+  const releaseSlot = (activeSlot + buildTurns) % CONSTRUCTION_WHEEL_SLOT_COUNT;
   const nextExcavators = getSlotExcavators(wheelEid, releaseSlot) + excavators;
   const nextConcreteMixers =
     getSlotConcreteMixers(wheelEid, releaseSlot) + concreteMixers;
@@ -196,6 +195,17 @@ const hasEnoughResources = (
 const isDamStructureKind = (structureType: number): boolean =>
   structureType === StructureKind.baseDam ||
   structureType === StructureKind.elevationDam;
+
+const clearPendingConstruction = (eid: number): void => {
+  StructureComponent.pendingType[eid] = StructureKind.none;
+  StructureComponent.constructionTurnsRemaining[eid] = 0;
+  StructureComponent.constructionTotalTurns[eid] = 0;
+  StructureComponent.pendingDischargeCapacity[eid] = 0;
+  StructureComponent.pendingDamHeight[eid] = 0;
+  StructureComponent.pendingMaxWaterDepth[eid] = 0;
+  StructureComponent.pendingEfficiency[eid] = 0;
+  StructureComponent.pendingGateOpening[eid] = 0;
+};
 
 export class BuildInfrastructureCommand implements BuildCommand {
   public constructor(
@@ -242,8 +252,24 @@ export class BuildInfrastructureCommand implements BuildCommand {
       };
     }
 
+    if (
+      hasStructureComponent &&
+      StructureComponent.constructionTurnsRemaining[this.targetCellEid] > 0
+    ) {
+      return {
+        ok: false,
+        message: 'This cell already has construction in progress.',
+        targetCellEid: this.targetCellEid,
+        buildType: this.buildType,
+      };
+    }
+
     if (!hasStructureComponent) {
       addComponent(context.world, StructureComponent, this.targetCellEid);
+      StructureComponent.type[this.targetCellEid] = StructureKind.none;
+      StructureComponent.level[this.targetCellEid] = 0;
+      StructureComponent.active[this.targetCellEid] = 0;
+      clearPendingConstruction(this.targetCellEid);
     }
 
     PlayerResourceComponent.credits[context.playerResourceEid] -= cost.credits;
@@ -254,32 +280,29 @@ export class BuildInfrastructureCommand implements BuildCommand {
 
     lockMachinery(
       context.constructionWheelEid,
-      cost.delayTurns,
+      cost.buildTurns,
       cost.excavators,
       cost.concreteMixers,
     );
 
-    const existingLevel = StructureComponent.level[this.targetCellEid];
-    StructureComponent.type[this.targetCellEid] =
+    StructureComponent.pendingType[this.targetCellEid] =
       BUILD_TYPE_TO_STRUCTURE_KIND[this.buildType];
-    StructureComponent.level[this.targetCellEid] =
-      this.buildType === 'elevationDam' ? Math.max(1, existingLevel + 1) : 1;
-    StructureComponent.active[this.targetCellEid] = 1;
-    StructureComponent.dischargeCapacity[this.targetCellEid] =
+    StructureComponent.pendingDischargeCapacity[this.targetCellEid] =
       cost.dischargeCapacity;
-    StructureComponent.damHeight[this.targetCellEid] += cost.damHeight;
-    StructureComponent.maxWaterDepth[this.targetCellEid] += cost.maxWaterDepth;
-    StructureComponent.capacity[this.targetCellEid] =
-      StructureComponent.maxWaterDepth[this.targetCellEid];
-    StructureComponent.constructionProgress[this.targetCellEid] = 1;
-    StructureComponent.efficiency[this.targetCellEid] =
+    StructureComponent.pendingDamHeight[this.targetCellEid] = cost.damHeight;
+    StructureComponent.pendingMaxWaterDepth[this.targetCellEid] = cost.maxWaterDepth;
+    StructureComponent.pendingEfficiency[this.targetCellEid] =
       this.buildType === 'powerhouse' ? 0.78 : 0;
-    StructureComponent.gateOpening[this.targetCellEid] =
+    StructureComponent.pendingGateOpening[this.targetCellEid] =
       this.buildType === 'conduit' || this.buildType === 'powerhouse' ? 1 : 0.25;
+    StructureComponent.constructionTurnsRemaining[this.targetCellEid] =
+      cost.buildTurns;
+    StructureComponent.constructionTotalTurns[this.targetCellEid] = cost.buildTurns;
+    StructureComponent.constructionProgress[this.targetCellEid] = 0;
 
     return {
       ok: true,
-      message: 'Construction queued and infrastructure placed.',
+      message: `Construction started; ${cost.buildTurns} turn(s) remaining.`,
       targetCellEid: this.targetCellEid,
       buildType: this.buildType,
     };

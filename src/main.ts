@@ -16,6 +16,7 @@ import {
   SoilInfiltrationSystem,
   ResourceEconomySystem,
   WeatherSystem,
+  ConstructionProgressSystem,
   type HexGridTopology,
   type ShallowWaterSystemStats,
 } from './core/ecs/systems';
@@ -41,6 +42,7 @@ import { HydroRenderer, type BasinRenderCell } from './view/renderer';
 import {
   UIShell,
   type BuildMenuSnapshot,
+  type ConstructionHudItem,
   type PendingBuildHudItem,
   type ResourceHudSnapshot,
 } from './view/uishell';
@@ -73,6 +75,14 @@ const BUILD_LABELS: Readonly<Record<InfrastructureBuildType, string>> = {
   elevationDam: 'Elevation Dam',
   conduit: 'Conduit',
   powerhouse: 'Powerhouse',
+};
+
+const STRUCTURE_KIND_LABELS: Readonly<Record<number, string>> = {
+  [StructureKind.none]: 'None',
+  [StructureKind.baseDam]: 'Base Dam',
+  [StructureKind.elevationDam]: 'Elevation Dam',
+  [StructureKind.conduit]: 'Conduit',
+  [StructureKind.powerhouse]: 'Powerhouse',
 };
 
 const EMPTY_RESOURCE_COST: ResourceHudSnapshot = {
@@ -126,13 +136,39 @@ let cumulativeNetIncomeCredits = 0;
 
 const coordKey = (q: number, r: number): string => `${q},${r}`;
 
+const getNextCampaignLevel = (): LevelDefinition | undefined => {
+  const currentIndex = CAMPAIGN_LEVELS.findIndex(
+    (level) => level.id === currentLevel.id,
+  );
+
+  if (currentIndex < 0) {
+    return undefined;
+  }
+
+  return CAMPAIGN_LEVELS[currentIndex + 1];
+};
+
+const getCampaignEndedMessage = (): string =>
+  campaignOutcome === 'complete'
+    ? 'This campaign level is complete. Choose Next Level or Menu.'
+    : 'This campaign level has ended. Retry or choose Menu.';
+
 const formatBuildCost = (buildType: InfrastructureBuildType): string => {
   const cost = INFRASTRUCTURE_COSTS[buildType];
 
-  return `${cost.credits} cr, ${cost.engineers} eng, ${cost.excavators} exc, ${cost.concreteMixers} mix`;
+  return `${cost.credits} cr, ${cost.engineers} eng, ${cost.excavators} exc, ${cost.concreteMixers} mix, ${cost.buildTurns} turn(s)`;
 };
 
 const getStructureLabel = (eid: number): string => {
+  const pendingType = Number(Structure.pendingType[eid]);
+
+  if (
+    pendingType !== StructureKind.none &&
+    Structure.constructionTurnsRemaining[eid] > 0
+  ) {
+    return `${STRUCTURE_KIND_LABELS[pendingType] ?? 'Structure'} building (${Structure.constructionTurnsRemaining[eid]} turn(s))`;
+  }
+
   const structureType = Number(Structure.type[eid]);
 
   if (structureType === StructureKind.baseDam) {
@@ -185,6 +221,25 @@ const getPendingBuildHudItems = (
       costLabel: formatBuildCost(command.buildType),
     };
   });
+
+const getActiveConstructionHudItems = (): ConstructionHudItem[] =>
+  renderCells
+    .filter((cell) => Structure.constructionTurnsRemaining[cell.eid] > 0)
+    .map((cell) => {
+      const totalTurns = Math.max(1, Structure.constructionTotalTurns[cell.eid]);
+      const turnsRemaining = Structure.constructionTurnsRemaining[cell.eid];
+      const pendingType = Number(Structure.pendingType[cell.eid]);
+      const progressPercent = Math.round(
+        ((totalTurns - turnsRemaining) / totalTurns) * 100,
+      );
+
+      return {
+        label: STRUCTURE_KIND_LABELS[pendingType] ?? 'Structure',
+        targetLabel: `q${cell.q}, r${cell.r}`,
+        turnsRemaining,
+        progressPercent,
+      };
+    });
 
 const getAvailableResourcesAfterPending = (): ResourceHudSnapshot => {
   const pendingCost = getPendingBuildCost(
@@ -245,6 +300,13 @@ const validateBuildRequest = (
     return {
       ok: false,
       reason: 'This cell already has a queued build order.',
+    };
+  }
+
+  if (Structure.constructionTurnsRemaining[targetCellEid] > 0) {
+    return {
+      ok: false,
+      reason: 'This cell already has construction in progress.',
     };
   }
 
@@ -448,6 +510,7 @@ const createBasinCell = (seed: BasinCellSeed): BasinRenderCell => {
     Structure.type[eid] = seed.structureType;
     Structure.level[eid] = seed.structureType === StructureKind.none ? 0 : 1;
     Structure.active[eid] = seed.structureType === StructureKind.none ? 0 : 1;
+    Structure.pendingType[eid] = StructureKind.none;
     Structure.dischargeCapacity[eid] =
       seed.structureType === StructureKind.baseDam ? 0.22 : 0.3;
     Structure.damHeight[eid] = seed.damHeight;
@@ -455,6 +518,13 @@ const createBasinCell = (seed: BasinCellSeed): BasinRenderCell => {
     Structure.capacity[eid] = seed.maxWaterDepth;
     Structure.storageDepth[eid] = 0;
     Structure.constructionProgress[eid] = 1;
+    Structure.constructionTurnsRemaining[eid] = 0;
+    Structure.constructionTotalTurns[eid] = 0;
+    Structure.pendingDischargeCapacity[eid] = 0;
+    Structure.pendingDamHeight[eid] = 0;
+    Structure.pendingMaxWaterDepth[eid] = 0;
+    Structure.pendingEfficiency[eid] = 0;
+    Structure.pendingGateOpening[eid] = 0;
     Structure.efficiency[eid] =
       seed.structureType === StructureKind.powerhouse ? 0.78 : 0;
     Structure.gateOpening[eid] =
@@ -524,7 +594,7 @@ const uiShell = new UIShell({
   onReset: resetBasin,
   onStormPulse: () => {
     if (campaignOutcome !== 'playing' && currentLevel.id !== SANDBOX_LEVEL.id) {
-      uiShell.setMessage('Retry the level or return to Menu to continue.');
+      uiShell.setMessage(getCampaignEndedMessage());
       return;
     }
 
@@ -537,6 +607,17 @@ const uiShell = new UIShell({
     uiShell.showMainMenu();
   },
   onRetryLevel: () => loadLevel(currentLevel),
+  onNextLevel: () => {
+    const nextLevel = getNextCampaignLevel();
+
+    if (nextLevel) {
+      loadLevel(nextLevel);
+    } else {
+      uiShell.hideOutcome();
+      uiShell.showMainMenu();
+      uiShell.setMessage('Campaign complete. Choose a level or Sandbox from Menu.');
+    }
+  },
   onOutcomeMenuRequested: () => {
     uiShell.hideOutcome();
     uiShell.showMainMenu();
@@ -553,7 +634,7 @@ const hydroRenderer = new HydroRenderer(uiShell.viewport, {
     }
 
     if (campaignOutcome !== 'playing' && currentLevel.id !== SANDBOX_LEVEL.id) {
-      uiShell.setMessage('This campaign level has ended. Retry or choose a level.');
+      uiShell.setMessage(getCampaignEndedMessage());
       return;
     }
 
@@ -587,6 +668,7 @@ const updateHud = (stats: ShallowWaterSystemStats = latestStats): void => {
     ...turnResolutionHud,
     pendingBuilds: getPendingBuildHudItems(snapshot.context.pendingBuildCommands),
     pendingBuildCost,
+    activeConstructions: getActiveConstructionHudItems(),
     resources: {
       credits: PlayerResourceComponent.credits[playerResourceEid],
       reservoirWaterCubicMeters:
@@ -600,7 +682,6 @@ const updateHud = (stats: ShallowWaterSystemStats = latestStats): void => {
     objectives: currentLevel.objectives,
     objectiveProgress: {
       ...latestObjectiveProgress,
-      turn: snapshot.context.turn,
       credits: PlayerResourceComponent.credits[playerResourceEid],
       reservoirWaterCubicMeters:
         PlayerResourceComponent.reservoirWater[playerResourceEid],
@@ -682,6 +763,12 @@ function loadLevel(level: LevelDefinition): void {
   uiShell.hideMainMenu();
   uiShell.setMessage(`${level.title} loaded.`);
   uiShell.addEvent(`${level.title} started.`);
+  if (level.objectives.maxTurns < 900) {
+    uiShell.addEvent(`Turn limit: resolve the objective within ${level.objectives.maxTurns} turns.`);
+  }
+  if (level.objectives.minResolvedTurns !== undefined) {
+    uiShell.addEvent(`Minimum hold: keep objectives satisfied through turn ${level.objectives.minResolvedTurns}.`);
+  }
   uiShell.addEvent(`Turn ${gameActor.getSnapshot().context.turn} planning opened.`);
   hydroRenderer.setCells(renderCells);
   hydroRenderer.update();
@@ -730,32 +817,17 @@ const executeQueuedBuildCommands = (): void => {
 
   const failed = results.find((result) => !result.ok);
   const successCount = results.filter((result) => result.ok).length;
-  for (const result of results) {
-    if (!result.ok) {
-      continue;
-    }
-
-    if (result.buildType === 'baseDam') {
-      builtBaseDams += 1;
-    } else if (result.buildType === 'elevationDam') {
-      builtElevationDamLevels += 1;
-    } else if (result.buildType === 'conduit') {
-      builtConduits += 1;
-    } else if (result.buildType === 'powerhouse') {
-      builtPowerhouses += 1;
-    }
-  }
 
   uiShell.setMessage(
     failed?.message ??
       (results.length > 0
-        ? `${successCount} build order(s) executed.`
+        ? `${successCount} construction job(s) started.`
         : 'No build orders queued; resolving water and economy.'),
   );
   for (const result of results) {
     uiShell.addEvent(
       result.ok
-        ? `${result.buildType} placed on cell ${result.targetCellEid}; machinery locked.`
+        ? `${result.buildType} construction started on cell ${result.targetCellEid}.`
         : `Build failed on cell ${result.targetCellEid}: ${result.message}`,
     );
   }
@@ -767,7 +839,7 @@ const executeQueuedBuildCommands = (): void => {
 
 function queueBuild(buildType: InfrastructureBuildType): void {
   if (campaignOutcome !== 'playing' && currentLevel.id !== SANDBOX_LEVEL.id) {
-    uiShell.setMessage('This campaign level has ended. Retry or choose a level.');
+    uiShell.setMessage(getCampaignEndedMessage());
     return;
   }
 
@@ -830,7 +902,7 @@ function cancelBuildCommand(commandId: string): void {
 
 function toggleAddTileMode(): void {
   if (campaignOutcome !== 'playing' && currentLevel.id !== SANDBOX_LEVEL.id) {
-    uiShell.setMessage('This campaign level has ended. Retry or choose a level.');
+    uiShell.setMessage(getCampaignEndedMessage());
     return;
   }
 
@@ -853,7 +925,7 @@ function toggleAddTileMode(): void {
 
 function addTileAdjacentToSelectedCell(direction: number): void {
   if (campaignOutcome !== 'playing' && currentLevel.id !== SANDBOX_LEVEL.id) {
-    uiShell.setMessage('This campaign level has ended. Retry or choose a level.');
+    uiShell.setMessage(getCampaignEndedMessage());
     return;
   }
 
@@ -924,7 +996,7 @@ function addTileAdjacentToSelectedCell(direction: number): void {
 
 function commitPlanning(): void {
   if (campaignOutcome !== 'playing' && currentLevel.id !== SANDBOX_LEVEL.id) {
-    uiShell.setMessage('This campaign level has ended. Retry or choose a level.');
+    uiShell.setMessage(getCampaignEndedMessage());
     return;
   }
 
@@ -948,11 +1020,26 @@ function commitPlanning(): void {
 
 const finalizeRound = (): void => {
   const release = ConstructionWheelSystem(world);
+  const completedConstruction = ConstructionProgressSystem(world);
   const economy = ResourceEconomySystem(world, {
     playerResourceEid,
+    neighborEids: topology.neighborEids,
+    directionCount: topology.directionCount,
   });
   const resolvedTurn = gameActor.getSnapshot().context.turn;
   cumulativeNetIncomeCredits += economy.netIncomeCredits;
+
+  for (const completed of completedConstruction) {
+    if (completed.structureType === StructureKind.baseDam) {
+      builtBaseDams += 1;
+    } else if (completed.structureType === StructureKind.elevationDam) {
+      builtElevationDamLevels += 1;
+    } else if (completed.structureType === StructureKind.conduit) {
+      builtConduits += 1;
+    } else if (completed.structureType === StructureKind.powerhouse) {
+      builtPowerhouses += 1;
+    }
+  }
 
   latestObjectiveProgress = {
     turn: resolvedTurn,
@@ -970,6 +1057,7 @@ const finalizeRound = (): void => {
 
   PlayerResourceComponent.engineers[playerResourceEid] =
     currentLevel.resources.engineers;
+
   gameActor.send({
     type: 'EVALUATION_COMPLETE',
     scores: {
@@ -990,11 +1078,16 @@ const finalizeRound = (): void => {
   uiShell.addEvent(
     `Economy: +${economy.grossIncomeCredits} income, -${economy.totalPenaltyCredits} penalty, net ${economy.netIncomeCredits}.`,
   );
+  for (const completed of completedConstruction) {
+    uiShell.addEvent(
+      `${STRUCTURE_KIND_LABELS[completed.structureType] ?? 'Structure'} completed on cell ${completed.eid}.`,
+    );
+  }
   uiShell.addEvent(
-    `Reservoir: ${Math.round(economy.reservoirWaterCubicMeters)} m3 stored; hydro +${economy.hydropowerCredits}, irrigation +${economy.irrigationCredits}.`,
+    `Stored Water: ${Math.round(economy.reservoirWaterCubicMeters)} m3; hydro +${economy.hydropowerCredits}, irrigation +${economy.irrigationCredits}.`,
   );
   if (economy.reservoirWaterCubicMeters > 100 && economy.hydropowerCredits === 0) {
-    uiShell.addEvent('Stored water needs a Powerhouse and flow path to become credits.');
+    uiShell.addEvent('Stored water is a reserve; it needs a Powerhouse and flow path to become credits.');
   }
   evaluateLevelObjectives();
   if (campaignOutcome === 'playing') {
@@ -1014,6 +1107,8 @@ function evaluateLevelObjectives(): void {
   const progress = latestObjectiveProgress;
   const complete =
     progress.turn <= objectives.maxTurns &&
+    (objectives.minResolvedTurns === undefined ||
+      progress.turn >= objectives.minResolvedTurns) &&
     (objectives.minCredits === undefined ||
       progress.credits >= objectives.minCredits) &&
     (objectives.minCumulativeNetIncomeCredits === undefined ||
@@ -1038,24 +1133,37 @@ function evaluateLevelObjectives(): void {
       progress.sustainabilityScore >= objectives.minSustainabilityScore);
 
   if (complete) {
+    const nextLevel = getNextCampaignLevel();
+
     campaignOutcome = 'complete';
-    uiShell.setMessage(`${currentLevel.title} complete.`);
-    uiShell.addEvent(`${currentLevel.title} objective complete. Open Menu for the next level.`);
+    uiShell.setMessage(`${currentLevel.title} complete on turn ${progress.turn}.`);
+    uiShell.addEvent(
+      `${currentLevel.title} objective complete on turn ${progress.turn}/${objectives.maxTurns}.`,
+    );
     uiShell.showOutcome(
       currentLevel.title,
-      'Objective complete. Pick the next campaign level from Menu or retry this basin to test a different strategy.',
+      nextLevel
+        ? `Objective complete on turn ${progress.turn}/${objectives.maxTurns}. Continue to ${nextLevel.title} or return to Menu.`
+        : `Objective complete on turn ${progress.turn}/${objectives.maxTurns}. Campaign complete; return to Menu to replay any level.`,
       'complete',
+      {
+        primaryAction: nextLevel ? 'nextLevel' : 'none',
+      },
     );
     return;
   }
 
   if (progress.turn >= objectives.maxTurns) {
     campaignOutcome = 'failed';
-    uiShell.setMessage(`${currentLevel.title} failed. Try a different basin plan.`);
-    uiShell.addEvent(`${currentLevel.title} failed: turn limit exceeded.`);
+    uiShell.setMessage(
+      `${currentLevel.title} failed at turn ${progress.turn}/${objectives.maxTurns}.`,
+    );
+    uiShell.addEvent(
+      `${currentLevel.title} failed: turn limit ${objectives.maxTurns} reached.`,
+    );
     uiShell.showOutcome(
       'Game Over',
-      `${currentLevel.title} exceeded the turn limit before the objective was complete. Retry the level and adjust dam placement, stored water, or spending.`,
+      `${currentLevel.title} reached the ${objectives.maxTurns}-turn limit before the objective was complete. Retry and adjust dam placement, stored water, or spending.`,
       'failed',
     );
   }

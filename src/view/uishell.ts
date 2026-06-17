@@ -27,6 +27,7 @@ export interface SimulationHudSnapshot {
   readonly turnResolutionDetail: string;
   readonly pendingBuilds: readonly PendingBuildHudItem[];
   readonly pendingBuildCost: ResourceHudSnapshot;
+  readonly activeConstructions: readonly ConstructionHudItem[];
   readonly resources: ResourceHudSnapshot;
   readonly objectives: LevelObjectives;
   readonly objectiveProgress: ObjectiveProgressSnapshot;
@@ -39,6 +40,13 @@ export interface PendingBuildHudItem {
   readonly label: string;
   readonly targetLabel: string;
   readonly costLabel: string;
+}
+
+export interface ConstructionHudItem {
+  readonly label: string;
+  readonly targetLabel: string;
+  readonly turnsRemaining: number;
+  readonly progressPercent: number;
 }
 
 export interface BuildOptionHudSnapshot {
@@ -84,7 +92,12 @@ export interface UIShellCallbacks {
   readonly onStormPulse: () => void;
   readonly onMenuRequested: () => void;
   readonly onRetryLevel: () => void;
+  readonly onNextLevel: () => void;
   readonly onOutcomeMenuRequested: () => void;
+}
+
+export interface OutcomeActionOptions {
+  readonly primaryAction: 'retry' | 'nextLevel' | 'none';
 }
 
 const requireElement = <T extends HTMLElement>(selector: string): T => {
@@ -131,6 +144,8 @@ export class UIShell {
   private readonly messageLabel = requireElement<HTMLElement>('#messageLabel');
   private readonly pendingBuildList =
     requireElement<HTMLOListElement>('#pendingBuildList');
+  private readonly activeConstructionList =
+    requireElement<HTMLOListElement>('#activeConstructionList');
   private readonly planCostLabel = requireElement<HTMLElement>('#planCostLabel');
   private readonly turnRunner = requireElement<HTMLElement>('#turnRunner');
   private readonly runnerPhaseLabel =
@@ -176,17 +191,21 @@ export class UIShell {
   );
   private readonly levelTitle = requireElement<HTMLElement>('#levelTitle');
   private readonly levelDescription = requireElement<HTMLElement>('#levelDescription');
+  private readonly levelHint = requireElement<HTMLElement>('#levelHint');
+  private readonly objectiveDeadlineLabel =
+    requireElement<HTMLElement>('#objectiveDeadlineLabel');
   private readonly objectiveList = requireElement<HTMLUListElement>('#objectiveList');
   private readonly outcomeOverlay = requireElement<HTMLElement>('#outcomeOverlay');
   private readonly outcomePanel = requireElement<HTMLElement>('.outcome-panel');
   private readonly outcomeEyebrow = requireElement<HTMLElement>('#outcomeEyebrow');
   private readonly outcomeTitle = requireElement<HTMLElement>('#outcomeTitle');
   private readonly outcomeMessage = requireElement<HTMLElement>('#outcomeMessage');
-  private readonly retryLevelButton =
-    requireElement<HTMLButtonElement>('#retryLevelButton');
+  private readonly outcomePrimaryButton =
+    requireElement<HTMLButtonElement>('#outcomePrimaryButton');
   private readonly outcomeMenuButton =
     requireElement<HTMLButtonElement>('#outcomeMenuButton');
   private interactionLocked = false;
+  private outcomePrimaryAction: OutcomeActionOptions['primaryAction'] = 'retry';
   private readonly buildOptionBlocked: Record<InfrastructureBuildType, boolean> = {
     baseDam: false,
     elevationDam: false,
@@ -208,7 +227,13 @@ export class UIShell {
     this.stormButton.addEventListener('click', callbacks.onStormPulse);
     this.resetButton.addEventListener('click', callbacks.onReset);
     this.menuButton.addEventListener('click', callbacks.onMenuRequested);
-    this.retryLevelButton.addEventListener('click', callbacks.onRetryLevel);
+    this.outcomePrimaryButton.addEventListener('click', () => {
+      if (this.outcomePrimaryAction === 'nextLevel') {
+        callbacks.onNextLevel();
+      } else if (this.outcomePrimaryAction === 'retry') {
+        callbacks.onRetryLevel();
+      }
+    });
     this.outcomeMenuButton.addEventListener(
       'click',
       callbacks.onOutcomeMenuRequested,
@@ -268,7 +293,14 @@ export class UIShell {
     this.engineersLabel.textContent = `${snapshot.resources.engineers}`;
     this.excavatorsLabel.textContent = `${snapshot.resources.excavators}`;
     this.mixersLabel.textContent = `${snapshot.resources.concreteMixers}`;
-    this.phaseLabel.textContent = `Turn ${snapshot.turn} - Phase: ${formatPhase(snapshot.phase)}`;
+    const isSandbox = snapshot.objectives.maxTurns >= 900;
+    const turnsResolved = snapshot.objectiveProgress.turn;
+    const turnsRemaining = Math.max(0, snapshot.objectives.maxTurns - turnsResolved);
+    this.phaseLabel.textContent = isSandbox
+      ? `Turn ${snapshot.turn} - Phase: ${formatPhase(snapshot.phase)}`
+      : `Turn ${snapshot.turn}/${snapshot.objectives.maxTurns} - Phase: ${formatPhase(
+          snapshot.phase,
+        )} - ${turnsRemaining} turn(s) left`;
     this.modeLabel.textContent = `Mode: ${snapshot.mode === 'build' ? 'Build' : 'Add Tile'}`;
     this.addTileModeButton.classList.toggle('is-active', snapshot.mode === 'addTile');
     this.queueLabel.textContent = `Queued builds: ${snapshot.queuedBuildCount}`;
@@ -280,8 +312,10 @@ export class UIShell {
       snapshot.pendingBuildCost,
       snapshot.interactionLocked,
     );
+    this.renderActiveConstructions(snapshot.activeConstructions);
     this.updateInteractionLock(snapshot.interactionLocked);
     this.updateTurnRunner(snapshot);
+    this.updateDeadlineLabel(snapshot.objectives, snapshot.objectiveProgress);
     this.renderObjectives(snapshot.objectives, snapshot.objectiveProgress);
   }
 
@@ -341,11 +375,18 @@ export class UIShell {
     title: string,
     message: string,
     state: 'complete' | 'failed',
+    options: OutcomeActionOptions = {
+      primaryAction: state === 'complete' ? 'nextLevel' : 'retry',
+    },
   ): void {
     this.outcomeEyebrow.textContent = state === 'complete' ? 'Level Complete' : 'Game Over';
     this.outcomeTitle.textContent = title;
     this.outcomeMessage.textContent = message;
     this.outcomePanel.classList.toggle('is-failed', state === 'failed');
+    this.outcomePrimaryAction = options.primaryAction;
+    this.outcomePrimaryButton.hidden = options.primaryAction === 'none';
+    this.outcomePrimaryButton.textContent =
+      options.primaryAction === 'nextLevel' ? 'Next Level' : 'Retry Level';
     this.outcomeOverlay.hidden = false;
   }
 
@@ -356,6 +397,8 @@ export class UIShell {
   public setLevel(level: LevelDefinition): void {
     this.levelTitle.textContent = level.title;
     this.levelDescription.textContent = level.description;
+    this.levelHint.textContent = level.hint ?? '';
+    this.levelHint.hidden = !level.hint;
   }
 
   public addEvent(message: string): void {
@@ -373,23 +416,17 @@ export class UIShell {
     progress: ObjectiveProgressSnapshot,
   ): void {
     this.objectiveList.replaceChildren();
-    this.appendObjective(
-      `Deadline Turn ${progress.turn}/${objectives.maxTurns}`,
-      progress.turn <= objectives.maxTurns,
+    this.appendObjectiveLine(
+      objectives.maxTurns >= 900
+        ? `Resolved Turns ${progress.turn}`
+        : `Resolved Turns ${progress.turn}/${objectives.maxTurns}`,
+      progress.turn > objectives.maxTurns,
     );
 
-    if (objectives.minCredits !== undefined) {
+    if (objectives.minResolvedTurns !== undefined) {
       this.appendObjective(
-        `Credits ${progress.credits}/${objectives.minCredits}`,
-        progress.credits >= objectives.minCredits,
-      );
-    }
-
-    if (objectives.minCumulativeNetIncomeCredits !== undefined) {
-      this.appendObjective(
-        `Cumulative Net Income ${progress.cumulativeNetIncomeCredits}/${objectives.minCumulativeNetIncomeCredits}`,
-        progress.cumulativeNetIncomeCredits >=
-          objectives.minCumulativeNetIncomeCredits,
+        `Hold Reserve Until Turn ${progress.turn}/${objectives.minResolvedTurns}`,
+        progress.turn >= objectives.minResolvedTurns,
       );
     }
 
@@ -423,8 +460,23 @@ export class UIShell {
 
     if (objectives.minReservoirWaterCubicMeters !== undefined) {
       this.appendObjective(
-        `Reservoir ${Math.round(progress.reservoirWaterCubicMeters)}/${objectives.minReservoirWaterCubicMeters} m3`,
+        `Water Storage ${Math.round(progress.reservoirWaterCubicMeters)}/${objectives.minReservoirWaterCubicMeters} m3`,
         progress.reservoirWaterCubicMeters >= objectives.minReservoirWaterCubicMeters,
+      );
+    }
+
+    if (objectives.minCredits !== undefined) {
+      this.appendObjective(
+        `Credits ${progress.credits}/${objectives.minCredits}`,
+        progress.credits >= objectives.minCredits,
+      );
+    }
+
+    if (objectives.minCumulativeNetIncomeCredits !== undefined) {
+      this.appendObjective(
+        `Cumulative Net Income ${progress.cumulativeNetIncomeCredits}/${objectives.minCumulativeNetIncomeCredits}`,
+        progress.cumulativeNetIncomeCredits >=
+          objectives.minCumulativeNetIncomeCredits,
       );
     }
 
@@ -457,6 +509,29 @@ export class UIShell {
     this.objectiveList.appendChild(item);
   }
 
+  private appendObjectiveLine(label: string, warning: boolean): void {
+    const item = document.createElement('li');
+    item.textContent = label;
+    item.classList.toggle('is-warning', warning);
+    this.objectiveList.appendChild(item);
+  }
+
+  private updateDeadlineLabel(
+    objectives: LevelObjectives,
+    progress: ObjectiveProgressSnapshot,
+  ): void {
+    if (objectives.maxTurns >= 900) {
+      this.objectiveDeadlineLabel.textContent = 'Sandbox mode: no campaign deadline';
+      this.objectiveDeadlineLabel.classList.remove('is-warning');
+      return;
+    }
+
+    const turnsRemaining = Math.max(0, objectives.maxTurns - progress.turn);
+    this.objectiveDeadlineLabel.textContent =
+      `Turn limit: ${objectives.maxTurns} resolved turns - ${turnsRemaining} remaining`;
+    this.objectiveDeadlineLabel.classList.toggle('is-warning', turnsRemaining <= 1);
+  }
+
   private renderPendingBuilds(
     builds: readonly PendingBuildHudItem[],
     cost: ResourceHudSnapshot,
@@ -486,6 +561,32 @@ export class UIShell {
     }
 
     this.planCostLabel.textContent = `Plan cost: ${cost.credits} cr, ${cost.engineers} eng, ${cost.excavators} exc, ${cost.concreteMixers} mix`;
+  }
+
+  private renderActiveConstructions(
+    constructions: readonly ConstructionHudItem[],
+  ): void {
+    this.activeConstructionList.replaceChildren();
+
+    if (constructions.length === 0) {
+      const item = document.createElement('li');
+
+      item.className = 'empty-plan';
+      item.textContent = 'No active construction';
+      this.activeConstructionList.appendChild(item);
+      return;
+    }
+
+    for (const construction of constructions) {
+      const item = document.createElement('li');
+      const text = document.createElement('span');
+      const progress = document.createElement('strong');
+
+      text.textContent = `${construction.label} at ${construction.targetLabel}`;
+      progress.textContent = `${construction.turnsRemaining} turn(s), ${construction.progressPercent}%`;
+      item.append(text, progress);
+      this.activeConstructionList.appendChild(item);
+    }
   }
 
   private applyBuildOption(

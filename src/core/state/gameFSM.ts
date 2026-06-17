@@ -423,7 +423,7 @@ export const hydroStrategistGameMachine = setup({
           actions: 'clearWorkerActions',
         },
         COMMIT_PLANNING: {
-          target: 'commandExecutionPhase',
+          target: 'weatherPhase',
           actions: 'scheduleConstructionTasks',
         },
       },
