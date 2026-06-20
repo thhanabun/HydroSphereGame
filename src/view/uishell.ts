@@ -31,6 +31,8 @@ export interface SimulationHudSnapshot {
   readonly resources: ResourceHudSnapshot;
   readonly objectives: LevelObjectives;
   readonly objectiveProgress: ObjectiveProgressSnapshot;
+  readonly canUseStormPulse: boolean;
+  readonly canUseAddTileMode: boolean;
 }
 
 export type InteractionMode = 'build' | 'addTile';
@@ -62,6 +64,7 @@ export interface BuildMenuSnapshot {
   readonly r: number;
   readonly elevationMeters: number;
   readonly waterDepthMeters: number;
+  readonly surfaceLabel: string;
   readonly structureLabel: string;
   readonly options: Readonly<Record<InfrastructureBuildType, BuildOptionHudSnapshot>>;
 }
@@ -84,6 +87,8 @@ export interface UIShellCallbacks {
   readonly onSandboxSelected: () => void;
   readonly onLevelSelected: (levelId: string) => void;
   readonly onBuildSelected: (buildType: InfrastructureBuildType) => void;
+  readonly onBuildDragStarted: (buildType: InfrastructureBuildType) => void;
+  readonly onBuildDragEnded: () => void;
   readonly onCancelBuildCommand: (commandId: string) => void;
   readonly onAddTileDirectionSelected: (direction: number) => void;
   readonly onToggleAddTileMode: () => void;
@@ -135,6 +140,12 @@ export class UIShell {
   private readonly creditsLabel = requireElement<HTMLElement>('#creditsLabel');
   private readonly reservoirLabel = requireElement<HTMLElement>('#reservoirLabel');
   private readonly incomeLabel = requireElement<HTMLElement>('#incomeLabel');
+  private readonly hydropowerLabel =
+    requireElement<HTMLElement>('#hydropowerLabel');
+  private readonly irrigationLabel =
+    requireElement<HTMLElement>('#irrigationLabel');
+  private readonly sustainabilityLabel =
+    requireElement<HTMLElement>('#sustainabilityLabel');
   private readonly engineersLabel = requireElement<HTMLElement>('#engineersLabel');
   private readonly excavatorsLabel = requireElement<HTMLElement>('#excavatorsLabel');
   private readonly mixersLabel = requireElement<HTMLElement>('#mixersLabel');
@@ -164,6 +175,9 @@ export class UIShell {
     requireElement<HTMLButtonElement>('#addTileModeButton');
   private readonly commitPlanButton =
     requireElement<HTMLButtonElement>('#commitPlanButton');
+  private readonly dragBuildButtons = Array.from(
+    document.querySelectorAll<HTMLButtonElement>('[data-drag-build-type]'),
+  );
   private readonly buildOverlay = requireElement<HTMLElement>('#buildOverlay');
   private readonly selectedCellLabel = requireElement<HTMLElement>('#selectedCellLabel');
   private readonly selectedCellDetails =
@@ -240,6 +254,20 @@ export class UIShell {
     );
     this.addTileModeButton.addEventListener('click', callbacks.onToggleAddTileMode);
     this.commitPlanButton.addEventListener('click', callbacks.onCommitPlan);
+    for (const button of this.dragBuildButtons) {
+      button.addEventListener('dragstart', (event) => {
+        const buildType = button.dataset.dragBuildType as InfrastructureBuildType | undefined;
+
+        if (!buildType) {
+          return;
+        }
+
+        event.dataTransfer?.setData('text/plain', buildType);
+        event.dataTransfer?.setDragImage(button, 12, 12);
+        callbacks.onBuildDragStarted(buildType);
+      });
+      button.addEventListener('dragend', callbacks.onBuildDragEnded);
+    }
     this.pendingBuildList.addEventListener('click', (event) => {
       const target = event.target;
 
@@ -279,6 +307,7 @@ export class UIShell {
 
   public updateHud(snapshot: SimulationHudSnapshot): void {
     this.weatherLabel.textContent = formatWeather(snapshot.weather);
+    this.weatherLabel.className = `weather-value weather-${snapshot.weather}`;
     this.waterLabel.textContent = `${snapshot.totalWaterDepthMeters.toFixed(2)} m`;
     this.depthLabel.textContent = `${snapshot.maxWaterDepthMeters.toFixed(2)} m`;
     this.flowLabel.textContent = `${snapshot.maxFlowCubicMetersPerSecond.toFixed(2)} m3/s`;
@@ -290,6 +319,15 @@ export class UIShell {
       snapshot.resources.lastNetIncomeCredits >= 0
         ? `+${snapshot.resources.lastNetIncomeCredits}`
         : `${snapshot.resources.lastNetIncomeCredits}`;
+    this.hydropowerLabel.textContent = `${Math.round(
+      snapshot.objectiveProgress.hydropowerScore,
+    )}`;
+    this.irrigationLabel.textContent = `${Math.round(
+      snapshot.objectiveProgress.irrigationScore,
+    )}`;
+    this.sustainabilityLabel.textContent = `${Math.round(
+      snapshot.objectiveProgress.sustainabilityScore,
+    )}`;
     this.engineersLabel.textContent = `${snapshot.resources.engineers}`;
     this.excavatorsLabel.textContent = `${snapshot.resources.excavators}`;
     this.mixersLabel.textContent = `${snapshot.resources.concreteMixers}`;
@@ -303,6 +341,8 @@ export class UIShell {
         )} - ${turnsRemaining} turn(s) left`;
     this.modeLabel.textContent = `Mode: ${snapshot.mode === 'build' ? 'Build' : 'Add Tile'}`;
     this.addTileModeButton.classList.toggle('is-active', snapshot.mode === 'addTile');
+    this.stormButton.hidden = !snapshot.canUseStormPulse;
+    this.addTileModeButton.hidden = !snapshot.canUseAddTileMode;
     this.queueLabel.textContent = `Queued builds: ${snapshot.queuedBuildCount}`;
     this.commitPlanButton.textContent = snapshot.interactionLocked
       ? 'Resolving Turn'
@@ -329,6 +369,7 @@ export class UIShell {
   ): void {
     this.selectedCellLabel.textContent = `Cell q${menu.q}, r${menu.r}`;
     this.selectedCellDetails.textContent = [
+      menu.surfaceLabel,
       `Elev ${menu.elevationMeters.toFixed(2)} m`,
       `Water ${menu.waterDepthMeters.toFixed(2)} m`,
       menu.structureLabel,
@@ -409,6 +450,10 @@ export class UIShell {
     while (this.eventLog.children.length > 8) {
       this.eventLog.lastElementChild?.remove();
     }
+  }
+
+  public clearEvents(): void {
+    this.eventLog.replaceChildren();
   }
 
   private renderObjectives(
@@ -625,6 +670,7 @@ export class UIShell {
       this.commitPlanButton,
       this.closeBuildOverlayButton,
       this.closeAddTileOverlayButton,
+      ...this.dragBuildButtons,
       ...this.addTileDirectionButtons,
     ];
 

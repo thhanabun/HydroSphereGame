@@ -8,14 +8,18 @@ import {
   Position,
   Structure,
   StructureKind,
+  SurfaceKind,
+  type SurfaceKindCode,
   Terrain,
   Water,
+  WaterSource,
 } from './core/ecs/components';
 import {
   ShallowWaterSystem,
   SoilInfiltrationSystem,
   ResourceEconomySystem,
   WeatherSystem,
+  SeasonalWaterSourceSystem,
   ConstructionProgressSystem,
   type HexGridTopology,
   type ShallowWaterSystemStats,
@@ -36,7 +40,7 @@ import {
   type BasinCellSeed,
   type LevelDefinition,
 } from './core/levels';
-import type { SimulationConstants, WeatherState } from './core/types';
+import type { Season, SimulationConstants, WeatherState } from './core/types';
 import './style.css';
 import { HydroRenderer, type BasinRenderCell } from './view/renderer';
 import {
@@ -76,6 +80,16 @@ const BUILD_LABELS: Readonly<Record<InfrastructureBuildType, string>> = {
   conduit: 'Conduit',
   powerhouse: 'Powerhouse',
 };
+const SANDBOX_SEASON_PATTERN: readonly Season[] = [
+  'dry',
+  'dry',
+  'dry',
+  'monsoon',
+  'monsoon',
+  'monsoon',
+  'monsoon',
+  'dry',
+];
 
 const STRUCTURE_KIND_LABELS: Readonly<Record<number, string>> = {
   [StructureKind.none]: 'None',
@@ -83,6 +97,12 @@ const STRUCTURE_KIND_LABELS: Readonly<Record<number, string>> = {
   [StructureKind.elevationDam]: 'Elevation Dam',
   [StructureKind.conduit]: 'Conduit',
   [StructureKind.powerhouse]: 'Powerhouse',
+};
+
+const SURFACE_KIND_LABELS: Readonly<Record<number, string>> = {
+  [SurfaceKind.land]: 'Land Build Tile',
+  [SurfaceKind.shore]: 'Shore Build Tile',
+  [SurfaceKind.water]: 'Water Depth Tile',
 };
 
 const EMPTY_RESOURCE_COST: ResourceHudSnapshot = {
@@ -128,6 +148,7 @@ let currentLevel: LevelDefinition = SANDBOX_LEVEL;
 let campaignOutcome: 'playing' | 'complete' | 'failed' = 'playing';
 let selectedCell: BasinRenderCell | undefined;
 let interactionMode: 'build' | 'addTile' = 'build';
+let draggedBuildType: InfrastructureBuildType | undefined;
 let builtBaseDams = 0;
 let builtElevationDamLevels = 0;
 let builtConduits = 0;
@@ -153,10 +174,88 @@ const getCampaignEndedMessage = (): string =>
     ? 'This campaign level is complete. Choose Next Level or Menu.'
     : 'This campaign level has ended. Retry or choose Menu.';
 
+const getSandboxSeasonForTurn = (turn: number): Season =>
+  SANDBOX_SEASON_PATTERN[(Math.max(1, turn) - 1) % SANDBOX_SEASON_PATTERN.length] ??
+  'dry';
+
+const getFixedCampaignWeatherForTurn = (
+  level: LevelDefinition,
+  turn: number,
+): WeatherState | undefined => {
+  if (level.id === SANDBOX_LEVEL.id || !level.weatherScript) {
+    return undefined;
+  }
+
+  return (
+    level.weatherScript[Math.min(level.weatherScript.length - 1, Math.max(1, turn) - 1)] ??
+    level.weatherScript[level.weatherScript.length - 1]
+  );
+};
+
+const formatWeatherScript = (weatherScript: readonly WeatherState[]): string =>
+  weatherScript
+    .map((weather, index) => `T${index + 1} ${weather}`)
+    .join(', ');
+
 const formatBuildCost = (buildType: InfrastructureBuildType): string => {
   const cost = INFRASTRUCTURE_COSTS[buildType];
 
   return `${cost.credits} cr, ${cost.engineers} eng, ${cost.excavators} exc, ${cost.concreteMixers} mix, ${cost.buildTurns} turn(s)`;
+};
+
+const inferSurfaceType = (seed: BasinCellSeed): SurfaceKindCode => {
+  if (seed.surfaceType !== undefined) {
+    return seed.surfaceType;
+  }
+
+  if ((seed.sourceDepthPerTurn ?? 0) > 0 || seed.waterDepth >= 0.22) {
+    return SurfaceKind.water;
+  }
+
+  if (seed.waterDepth >= 0.06 || seed.elevation <= 0.35) {
+    return SurfaceKind.shore;
+  }
+
+  return SurfaceKind.land;
+};
+
+const getSurfaceLabel = (eid: number): string =>
+  SURFACE_KIND_LABELS[Terrain.surfaceType[eid]] ?? 'Land Build Tile';
+
+const validateBuildSurface = (
+  targetCellEid: number,
+  buildType: InfrastructureBuildType,
+): { readonly ok: true } | { readonly ok: false; readonly reason: string } => {
+  const surfaceType = Terrain.surfaceType[targetCellEid];
+
+  if (buildType === 'baseDam') {
+    return surfaceType === SurfaceKind.water || surfaceType === SurfaceKind.shore
+      ? { ok: true }
+      : {
+          ok: false,
+          reason: 'Base Dam needs a Water Depth or Shore tile.',
+        };
+  }
+
+  if (buildType === 'powerhouse') {
+    return surfaceType === SurfaceKind.land || surfaceType === SurfaceKind.shore
+      ? { ok: true }
+      : {
+          ok: false,
+          reason: 'Powerhouse needs a Land or Shore build tile.',
+        };
+  }
+
+  if (buildType === 'conduit') {
+    return surfaceType === SurfaceKind.land || surfaceType === SurfaceKind.shore
+      ? { ok: true }
+      : {
+          ok: false,
+          reason: 'Conduit needs a Land or Shore build tile.',
+        };
+  }
+
+  return { ok: true };
 };
 
 const getStructureLabel = (eid: number): string => {
@@ -329,6 +428,14 @@ const validateBuildRequest = (
     };
   }
 
+  if (buildType !== 'elevationDam') {
+    const surfaceValidation = validateBuildSurface(targetCellEid, buildType);
+
+    if (!surfaceValidation.ok) {
+      return surfaceValidation;
+    }
+  }
+
   const cost = INFRASTRUCTURE_COSTS[buildType];
   const available = getAvailableResourcesAfterPending();
 
@@ -381,7 +488,13 @@ const createBuildMenuSnapshot = (cell: BasinRenderCell): BuildMenuSnapshot => {
     r: cell.r,
     elevationMeters: Terrain.elevation[cell.eid],
     waterDepthMeters: Water.depth[cell.eid],
-    structureLabel: getStructureLabel(cell.eid),
+    surfaceLabel: getSurfaceLabel(cell.eid),
+    structureLabel:
+      WaterSource.active[cell.eid] === 1
+        ? `${getStructureLabel(cell.eid)} | Headwater +${WaterSource.baseDepthPerTurn[
+            cell.eid
+          ].toFixed(2)} m/turn`
+        : getStructureLabel(cell.eid),
     options: {
       baseDam: createOption('baseDam'),
       elevationDam: createOption('elevationDam'),
@@ -479,6 +592,7 @@ const createBasinCell = (seed: BasinCellSeed): BasinRenderCell => {
     addComponent(world, Position, eid);
     addComponent(world, Terrain, eid);
     addComponent(world, Water, eid);
+    addComponent(world, WaterSource, eid);
     addComponent(world, Infiltration, eid);
     addComponent(world, Structure, eid);
 
@@ -496,11 +610,17 @@ const createBasinCell = (seed: BasinCellSeed): BasinRenderCell => {
     Terrain.curveNumber[eid] = seed.curveNumber;
     Terrain.soilType[eid] = 3;
     Terrain.biomeType[eid] = 1;
+    Terrain.surfaceType[eid] = inferSurfaceType(seed);
     Terrain.active[eid] = 1;
 
     Water.depth[eid] = seed.waterDepth;
     Water.previousDepth[eid] = seed.waterDepth;
     Water.hydraulicHead[eid] = seed.elevation + seed.waterDepth + seed.damHeight;
+
+    WaterSource.active[eid] =
+      seed.sourceDepthPerTurn && seed.sourceDepthPerTurn > 0 ? 1 : 0;
+    WaterSource.baseDepthPerTurn[eid] = seed.sourceDepthPerTurn ?? 0;
+    WaterSource.lastDepthAdded[eid] = 0;
 
     Infiltration.saturatedHydraulicConductivity[eid] = 0.000006;
     Infiltration.wettingFrontSuctionHead[eid] = 0.18;
@@ -587,6 +707,13 @@ const uiShell = new UIShell({
     }
   },
   onBuildSelected: queueBuild,
+  onBuildDragStarted: (buildType) => {
+    draggedBuildType = buildType;
+    uiShell.setMessage(`Drag ${BUILD_LABELS[buildType]} onto a hex to queue it.`);
+  },
+  onBuildDragEnded: () => {
+    draggedBuildType = undefined;
+  },
   onCancelBuildCommand: cancelBuildCommand,
   onAddTileDirectionSelected: addTileAdjacentToSelectedCell,
   onToggleAddTileMode: toggleAddTileMode,
@@ -595,6 +722,12 @@ const uiShell = new UIShell({
   onStormPulse: () => {
     if (campaignOutcome !== 'playing' && currentLevel.id !== SANDBOX_LEVEL.id) {
       uiShell.setMessage(getCampaignEndedMessage());
+      return;
+    }
+
+    if (currentLevel.id !== SANDBOX_LEVEL.id) {
+      uiShell.setMessage('Campaign weather is fixed for each turn. Storm Pulse is Sandbox-only.');
+      uiShell.addEvent('Storm Pulse ignored: campaign weather is scripted.');
       return;
     }
 
@@ -627,6 +760,48 @@ const hydroRenderer = new HydroRenderer(uiShell.viewport, {
   cells: renderCells,
   tileRadiusMeters: 1,
   maxCells: MAX_RENDER_CELLS,
+  onCellDropped: (cell) => {
+    if (!draggedBuildType) {
+      return;
+    }
+
+    if (gameActor.getSnapshot().value !== 'planningPhase') {
+      uiShell.setMessage('Construction drops are only available during Planning.');
+      draggedBuildType = undefined;
+      return;
+    }
+
+    selectedCell = cell;
+    const buildType = draggedBuildType;
+
+    draggedBuildType = undefined;
+    queueBuild(buildType);
+  },
+  onCellDragged: (cell, direction) => {
+    if (gameActor.getSnapshot().value !== 'planningPhase') {
+      uiShell.setMessage('Tile drag is only available during Planning.');
+      return;
+    }
+
+    if (campaignOutcome !== 'playing' && currentLevel.id !== SANDBOX_LEVEL.id) {
+      uiShell.setMessage(getCampaignEndedMessage());
+      return;
+    }
+
+    selectedCell = cell;
+
+    if (!currentLevel.allowGridExpansion) {
+      uiShell.setMessage('This level does not allow grid expansion.');
+      return;
+    }
+
+    if (interactionMode !== 'addTile') {
+      uiShell.setMessage('Switch to Add Tile Mode, then drag from a hex to expand.');
+      return;
+    }
+
+    addTileAdjacentToSelectedCell(direction);
+  },
   onCellSelected: (cell, pointer) => {
     if (gameActor.getSnapshot().value !== 'planningPhase') {
       uiShell.setMessage('Build orders are only available during Planning.');
@@ -656,6 +831,7 @@ const updateHud = (stats: ShallowWaterSystemStats = latestStats): void => {
   );
   const pendingBuildCost = getPendingBuildCost(snapshot.context.pendingBuildCommands);
 
+  hydroRenderer.setWeather(currentWeather);
   uiShell.updateHud({
     weather: currentWeather,
     turn: snapshot.context.turn,
@@ -691,6 +867,8 @@ const updateHud = (stats: ShallowWaterSystemStats = latestStats): void => {
       builtConduits,
       builtPowerhouses,
     },
+    canUseStormPulse: currentLevel.id === SANDBOX_LEVEL.id,
+    canUseAddTileMode: currentLevel.allowGridExpansion,
   });
 };
 
@@ -757,6 +935,7 @@ function loadLevel(level: LevelDefinition): void {
   clearConstructionWheel();
   gameActor.send({ type: 'RESET' });
   uiShell.setLevel(level);
+  uiShell.clearEvents();
   uiShell.hideOutcome();
   uiShell.hideBuildMenu();
   uiShell.hideAddTileMenu();
@@ -769,6 +948,11 @@ function loadLevel(level: LevelDefinition): void {
   if (level.objectives.minResolvedTurns !== undefined) {
     uiShell.addEvent(`Minimum hold: keep objectives satisfied through turn ${level.objectives.minResolvedTurns}.`);
   }
+  if (level.weatherScript) {
+    uiShell.addEvent(`Weather script: ${formatWeatherScript(level.weatherScript)}.`);
+  } else {
+    uiShell.addEvent('Sandbox weather: dry and monsoon seasons roll with Markov transitions.');
+  }
   uiShell.addEvent(`Turn ${gameActor.getSnapshot().context.turn} planning opened.`);
   hydroRenderer.setCells(renderCells);
   hydroRenderer.update();
@@ -780,18 +964,40 @@ const resolveWeatherForCommittedTurn = (): void => {
     return;
   }
 
+  const resolvingTurn = gameActor.getSnapshot().context.turn;
+  const fixedCampaignWeather = getFixedCampaignWeatherForTurn(
+    currentLevel,
+    resolvingTurn,
+  );
+  const sandboxSeason = getSandboxSeasonForTurn(resolvingTurn);
+  const season = currentLevel.id === SANDBOX_LEVEL.id ? sandboxSeason : 'dry';
   const weather = WeatherSystem(world, {
-    season: 'monsoon',
+    season,
     currentState: forceStormNextTurn ? 'storm' : currentWeather,
     random01: forceStormNextTurn ? 0.99 : Math.random(),
     sampleDurationSeconds: 86400,
+    forcedState: forceStormNextTurn ? 'storm' : fixedCampaignWeather,
   });
 
   currentWeather = weather.state;
+  const seasonalWater = SeasonalWaterSourceSystem(world, {
+    weather: weather.state,
+    precipitationMeters: weather.precipitationMeters,
+    evapotranspirationMeters: weather.evapotranspirationMeters,
+  });
   forceStormNextTurn = false;
   gameActor.send({ type: 'WEATHER_RESOLVED', weather });
   uiShell.addEvent(
-    `Turn ${gameActor.getSnapshot().context.turn}: weather resolved as ${currentWeather}.`,
+    currentLevel.id === SANDBOX_LEVEL.id
+      ? `Turn ${resolvingTurn}: ${season} season rolled ${currentWeather}.`
+      : `Turn ${resolvingTurn}: scripted weather is ${currentWeather}.`,
+  );
+  uiShell.addEvent(
+    `Headwater: +${seasonalWater.sourceDepthMeters.toFixed(
+      2,
+    )} m source, +${seasonalWater.runoffDepthMeters.toFixed(
+      2,
+    )} m runoff, -${seasonalWater.evapotranspirationDepthMeters.toFixed(2)} m evap.`,
   );
   updateHud();
 };
@@ -981,6 +1187,8 @@ function addTileAdjacentToSelectedCell(direction: number): void {
     structureType: StructureKind.none,
     damHeight: 0,
     maxWaterDepth: 0,
+    sourceDepthPerTurn: 0,
+    surfaceType: SurfaceKind.land,
   };
   const createdCell = createBasinCell(seed);
 
@@ -1177,6 +1385,7 @@ const simulateTick = (): void => {
   SoilInfiltrationSystem(world, {
     deltaTimeSeconds: SIMULATION_CONSTANTS.timeStepSeconds,
     etaMeters: SIMULATION_CONSTANTS.infiltrationEtaMeters,
+    includeEvapotranspiration: true,
   });
 
   latestStats = ShallowWaterSystem(world, {

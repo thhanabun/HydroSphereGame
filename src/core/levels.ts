@@ -1,4 +1,5 @@
-import { StructureKind } from './ecs/components';
+import { SurfaceKind, type SurfaceKindCode, StructureKind } from './ecs/components';
+import type { WeatherState } from './types';
 
 export interface BasinCellSeed {
   readonly q: number;
@@ -9,6 +10,8 @@ export interface BasinCellSeed {
   readonly structureType: number;
   readonly damHeight: number;
   readonly maxWaterDepth: number;
+  readonly sourceDepthPerTurn?: number;
+  readonly surfaceType?: SurfaceKindCode;
 }
 
 export interface LevelObjectives {
@@ -38,6 +41,7 @@ export interface LevelDefinition {
   readonly title: string;
   readonly description: string;
   readonly hint?: string;
+  readonly weatherScript?: readonly WeatherState[];
   readonly seed: readonly BasinCellSeed[];
   readonly resources: ResourceLoadout;
   readonly objectives: LevelObjectives;
@@ -69,6 +73,7 @@ export const SANDBOX_LEVEL: LevelDefinition = {
       structureType: StructureKind.baseDam,
       damHeight: 0.55,
       maxWaterDepth: 0.55,
+      surfaceType: SurfaceKind.water,
     },
     {
       q: 1,
@@ -79,6 +84,7 @@ export const SANDBOX_LEVEL: LevelDefinition = {
       structureType: StructureKind.none,
       damHeight: 0,
       maxWaterDepth: 0,
+      surfaceType: SurfaceKind.shore,
     },
     {
       q: 1,
@@ -89,6 +95,8 @@ export const SANDBOX_LEVEL: LevelDefinition = {
       structureType: StructureKind.none,
       damHeight: 0,
       maxWaterDepth: 0,
+      sourceDepthPerTurn: 0.05,
+      surfaceType: SurfaceKind.water,
     },
     {
       q: 0,
@@ -99,6 +107,8 @@ export const SANDBOX_LEVEL: LevelDefinition = {
       structureType: StructureKind.none,
       damHeight: 0,
       maxWaterDepth: 0,
+      sourceDepthPerTurn: 0.08,
+      surfaceType: SurfaceKind.water,
     },
     {
       q: -1,
@@ -109,6 +119,7 @@ export const SANDBOX_LEVEL: LevelDefinition = {
       structureType: StructureKind.none,
       damHeight: 0,
       maxWaterDepth: 0,
+      surfaceType: SurfaceKind.land,
     },
     {
       q: -1,
@@ -119,6 +130,7 @@ export const SANDBOX_LEVEL: LevelDefinition = {
       structureType: StructureKind.powerhouse,
       damHeight: 0,
       maxWaterDepth: 0,
+      surfaceType: SurfaceKind.shore,
     },
     {
       q: 0,
@@ -129,6 +141,139 @@ export const SANDBOX_LEVEL: LevelDefinition = {
       structureType: StructureKind.none,
       damHeight: 0,
       maxWaterDepth: 0,
+      surfaceType: SurfaceKind.water,
+    },
+    {
+      q: 2,
+      r: 0,
+      elevation: 0.58,
+      waterDepth: 0.025,
+      curveNumber: 68,
+      structureType: StructureKind.none,
+      damHeight: 0,
+      maxWaterDepth: 0,
+      surfaceType: SurfaceKind.land,
+    },
+    {
+      q: 2,
+      r: -1,
+      elevation: 0.72,
+      waterDepth: 0.04,
+      curveNumber: 66,
+      structureType: StructureKind.none,
+      damHeight: 0,
+      maxWaterDepth: 0,
+      surfaceType: SurfaceKind.shore,
+    },
+    {
+      q: 2,
+      r: -2,
+      elevation: 1.18,
+      waterDepth: 0.025,
+      curveNumber: 62,
+      structureType: StructureKind.none,
+      damHeight: 0,
+      maxWaterDepth: 0,
+      surfaceType: SurfaceKind.land,
+    },
+    {
+      q: 1,
+      r: -2,
+      elevation: 1.35,
+      waterDepth: 0.025,
+      curveNumber: 60,
+      structureType: StructureKind.none,
+      damHeight: 0,
+      maxWaterDepth: 0,
+      surfaceType: SurfaceKind.land,
+    },
+    {
+      q: 0,
+      r: -2,
+      elevation: 1.55,
+      waterDepth: 0.035,
+      curveNumber: 57,
+      structureType: StructureKind.none,
+      damHeight: 0,
+      maxWaterDepth: 0,
+      surfaceType: SurfaceKind.water,
+    },
+    {
+      q: -1,
+      r: -1,
+      elevation: 1.12,
+      waterDepth: 0.025,
+      curveNumber: 63,
+      structureType: StructureKind.none,
+      damHeight: 0,
+      maxWaterDepth: 0,
+      surfaceType: SurfaceKind.land,
+    },
+    {
+      q: -2,
+      r: 0,
+      elevation: 1,
+      waterDepth: 0.025,
+      curveNumber: 65,
+      structureType: StructureKind.none,
+      damHeight: 0,
+      maxWaterDepth: 0,
+      surfaceType: SurfaceKind.land,
+    },
+    {
+      q: -2,
+      r: 1,
+      elevation: 0.55,
+      waterDepth: 0.04,
+      curveNumber: 71,
+      structureType: StructureKind.none,
+      damHeight: 0,
+      maxWaterDepth: 0,
+      surfaceType: SurfaceKind.shore,
+    },
+    {
+      q: -2,
+      r: 2,
+      elevation: 0.12,
+      waterDepth: 0.04,
+      curveNumber: 74,
+      structureType: StructureKind.none,
+      damHeight: 0,
+      maxWaterDepth: 0,
+      surfaceType: SurfaceKind.shore,
+    },
+    {
+      q: -1,
+      r: 2,
+      elevation: -0.02,
+      waterDepth: 0.04,
+      curveNumber: 79,
+      structureType: StructureKind.none,
+      damHeight: 0,
+      maxWaterDepth: 0,
+      surfaceType: SurfaceKind.shore,
+    },
+    {
+      q: 0,
+      r: 2,
+      elevation: -0.3,
+      waterDepth: 0.34,
+      curveNumber: 84,
+      structureType: StructureKind.none,
+      damHeight: 0,
+      maxWaterDepth: 0,
+      surfaceType: SurfaceKind.water,
+    },
+    {
+      q: 1,
+      r: 1,
+      elevation: -0.08,
+      waterDepth: 0.04,
+      curveNumber: 81,
+      structureType: StructureKind.none,
+      damHeight: 0,
+      maxWaterDepth: 0,
+      surfaceType: SurfaceKind.shore,
     },
   ],
 };
@@ -163,7 +308,8 @@ export const CAMPAIGN_LEVELS: readonly LevelDefinition[] = [
     id: 'level-1',
     title: '1. First Reservoir',
     description: 'Build your first water reserve without running out of credits.',
-    hint: 'Build one Base Dam on the wet low cell q0, r0, then keep the water reserve stable through turn 3.',
+    hint: 'Weather is fixed in campaign. Build one Base Dam on the wet low cell q0, r0, then keep the water reserve stable through turn 3.',
+    weatherScript: ['sunny', 'cloudy', 'lightRain', 'cloudy', 'sunny'],
     allowGridExpansion: false,
     resources: { credits: 620, engineers: 3, excavators: 2, concreteMixers: 2 },
     objectives: {
@@ -173,13 +319,14 @@ export const CAMPAIGN_LEVELS: readonly LevelDefinition[] = [
       minCredits: 300,
       maxTurns: 5,
     },
-    seed: withoutInfrastructure(SANDBOX_LEVEL.seed.slice(0, 5)),
+    seed: withoutInfrastructure(SANDBOX_LEVEL.seed),
   },
   {
     id: 'level-2',
     title: '2. Turbine Contract',
     description: 'Turn stored flow into hydropower revenue.',
     hint: 'Build a Powerhouse next to the existing dam, such as q-1, r1, so it can use the dam head as a turbine intake. Reservoir storage alone does not create hydropower credits.',
+    weatherScript: ['cloudy', 'lightRain', 'cloudy', 'lightRain', 'sunny', 'cloudy'],
     allowGridExpansion: false,
     resources: { credits: 760, engineers: 4, excavators: 2, concreteMixers: 3 },
     objectives: {
@@ -189,28 +336,14 @@ export const CAMPAIGN_LEVELS: readonly LevelDefinition[] = [
       minCredits: 350,
       maxTurns: 6,
     },
-    seed: [
-      ...withoutStructureType(
-        SANDBOX_LEVEL.seed.slice(0, 6),
-        StructureKind.powerhouse,
-      ),
-      {
-        q: -2,
-        r: 2,
-        elevation: 0.05,
-        waterDepth: 0.16,
-        curveNumber: 74,
-        structureType: StructureKind.none,
-        damHeight: 0,
-        maxWaterDepth: 0,
-      },
-    ],
+    seed: withoutStructureType(SANDBOX_LEVEL.seed, StructureKind.powerhouse),
   },
   {
     id: 'level-3',
     title: '3. Irrigation Plain',
     description: 'Keep enough shallow water available for farms.',
-    hint: 'Use a Conduit on q0, r1 or q1, r1 to supply adjacent damp cells. Irrigation likes shallow water, and conduit-supported cells can stay productive at lower depth.',
+    hint: 'Use a Conduit on Shore tiles such as q1, r1 or q1, r0 to supply adjacent damp cells. Irrigation likes shallow water, and conduit-supported cells can stay productive at lower depth.',
+    weatherScript: ['cloudy', 'lightRain', 'sunny', 'cloudy', 'lightRain', 'sunny'],
     allowGridExpansion: true,
     resources: { credits: 700, engineers: 4, excavators: 3, concreteMixers: 2 },
     objectives: {
@@ -220,25 +353,14 @@ export const CAMPAIGN_LEVELS: readonly LevelDefinition[] = [
       minCredits: 280,
       maxTurns: 6,
     },
-    seed: [
-      ...SANDBOX_LEVEL.seed,
-      {
-        q: 1,
-        r: 1,
-        elevation: -0.05,
-        waterDepth: 0.2,
-        curveNumber: 82,
-        structureType: StructureKind.none,
-        damHeight: 0,
-        maxWaterDepth: 0,
-      },
-    ],
+    seed: SANDBOX_LEVEL.seed,
   },
   {
     id: 'level-4',
     title: '4. Flood Season',
     description: 'Survive monsoon water while preserving sustainability.',
     hint: 'Elevate an existing dam to hold back deeper water, then watch sustainability and flood penalties.',
+    weatherScript: ['lightRain', 'heavyRain', 'cloudy', 'heavyRain', 'lightRain', 'cloudy'],
     allowGridExpansion: true,
     resources: { credits: 840, engineers: 4, excavators: 3, concreteMixers: 3 },
     objectives: {
@@ -257,7 +379,17 @@ export const CAMPAIGN_LEVELS: readonly LevelDefinition[] = [
     id: 'level-5',
     title: '5. Balanced Basin',
     description: 'Earn credits while balancing hydropower, irrigation, and ecosystem stability.',
-    hint: 'Combine storage, flow, and shallow irrigation. Overbuilding can starve credits and machinery availability.',
+    hint: 'Build a Powerhouse on the Shore tile q1, r0 next to the dam, then add a Conduit on q-2, r1 or another Shore tile for irrigation support.',
+    weatherScript: [
+      'cloudy',
+      'lightRain',
+      'sunny',
+      'heavyRain',
+      'cloudy',
+      'lightRain',
+      'sunny',
+      'cloudy',
+    ],
     allowGridExpansion: true,
     resources: { credits: 980, engineers: 5, excavators: 4, concreteMixers: 4 },
     objectives: {
@@ -270,28 +402,6 @@ export const CAMPAIGN_LEVELS: readonly LevelDefinition[] = [
       minCredits: 600,
       maxTurns: 8,
     },
-    seed: [
-      ...SANDBOX_LEVEL.seed,
-      {
-        q: -2,
-        r: 1,
-        elevation: 0.2,
-        waterDepth: 0.1,
-        curveNumber: 73,
-        structureType: StructureKind.none,
-        damHeight: 0,
-        maxWaterDepth: 0,
-      },
-      {
-        q: 2,
-        r: -1,
-        elevation: 0.62,
-        waterDepth: 0.06,
-        curveNumber: 66,
-        structureType: StructureKind.none,
-        damHeight: 0,
-        maxWaterDepth: 0,
-      },
-    ],
+    seed: SANDBOX_LEVEL.seed,
   },
 ];

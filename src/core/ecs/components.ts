@@ -51,6 +51,14 @@ export const StructureKind = {
 
 export type StructureKindCode = (typeof StructureKind)[keyof typeof StructureKind];
 
+export const SurfaceKind = {
+  land: 0,
+  shore: 1,
+  water: 2,
+} as const;
+
+export type SurfaceKindCode = (typeof SurfaceKind)[keyof typeof SurfaceKind];
+
 export const WeatherStateCode = {
   sunny: 0,
   cloudy: 1,
@@ -76,6 +84,7 @@ export const Terrain = defineComponent({
   curveNumber: Types.f32,
   soilType: Types.ui8,
   biomeType: Types.ui8,
+  surfaceType: Types.ui8,
   active: Types.ui8,
 });
 
@@ -93,6 +102,12 @@ export const Water = defineComponent({
   flow3: Types.f32,
   flow4: Types.f32,
   flow5: Types.f32,
+});
+
+export const WaterSource = defineComponent({
+  active: Types.ui8,
+  baseDepthPerTurn: Types.f32,
+  lastDepthAdded: Types.f32,
 });
 
 export const Infiltration = defineComponent({
@@ -164,6 +179,7 @@ export type HydroComponent =
   | typeof Position
   | typeof Terrain
   | typeof Water
+  | typeof WaterSource
   | typeof Infiltration
   | typeof StructureComponent
   | typeof PlayerResourceComponent

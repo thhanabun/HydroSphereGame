@@ -30,33 +30,55 @@
           <p class="eyebrow">HydroStrategist</p>
           <h1>River Basin Prototype</h1>
         </header>
-        <section class="metrics">
-          <div>
-            <span>Weather</span>
+        <section class="resource-rail" aria-label="Basin summary">
+          <div class="resource-chip resource-weather">
+            <span class="resource-icon" aria-hidden="true">WX</span>
+            <span class="resource-copy">Weather</span>
             <strong id="weatherLabel">Sunny</strong>
           </div>
-          <div>
-            <span>Credits</span>
+          <div class="resource-chip">
+            <span class="resource-icon" aria-hidden="true">CR</span>
+            <span class="resource-copy">Credits</span>
             <strong id="creditsLabel">0</strong>
           </div>
-          <div>
-            <span>Stored Water</span>
+          <div class="resource-chip">
+            <span class="resource-icon" aria-hidden="true">SW</span>
+            <span class="resource-copy">Stored Water</span>
             <strong id="reservoirLabel">0 m3</strong>
           </div>
-          <div>
-            <span>Net Income</span>
+          <div class="resource-chip">
+            <span class="resource-icon" aria-hidden="true">NI</span>
+            <span class="resource-copy">Net Income</span>
             <strong id="incomeLabel">0</strong>
           </div>
-          <div>
-            <span>Engineers</span>
+          <div class="resource-chip">
+            <span class="resource-icon" aria-hidden="true">HP</span>
+            <span class="resource-copy">Hydropower</span>
+            <strong id="hydropowerLabel">0</strong>
+          </div>
+          <div class="resource-chip">
+            <span class="resource-icon" aria-hidden="true">IR</span>
+            <span class="resource-copy">Irrigation</span>
+            <strong id="irrigationLabel">0</strong>
+          </div>
+          <div class="resource-chip">
+            <span class="resource-icon" aria-hidden="true">SU</span>
+            <span class="resource-copy">Sustainability</span>
+            <strong id="sustainabilityLabel">100</strong>
+          </div>
+          <div class="resource-chip compact-resource">
+            <span class="resource-icon" aria-hidden="true">EN</span>
+            <span class="resource-copy">Engineers</span>
             <strong id="engineersLabel">0</strong>
           </div>
-          <div>
-            <span>Excavators</span>
+          <div class="resource-chip compact-resource">
+            <span class="resource-icon" aria-hidden="true">EX</span>
+            <span class="resource-copy">Excavators</span>
             <strong id="excavatorsLabel">0</strong>
           </div>
-          <div>
-            <span>Mixers</span>
+          <div class="resource-chip compact-resource">
+            <span class="resource-icon" aria-hidden="true">MX</span>
+            <span class="resource-copy">Mixers</span>
             <strong id="mixersLabel">0</strong>
           </div>
         </section>
@@ -83,6 +105,15 @@
           <button id="menuButton" type="button">Menu</button>
           <button id="addTileModeButton" type="button">Add Tile Mode</button>
           <button id="commitPlanButton" type="button">Commit Plan</button>
+        </section>
+        <section class="construction-palette" aria-label="Drag construction onto grid">
+          <h2>Build Palette</h2>
+          <div class="palette-buttons">
+            <button data-drag-build-type="baseDam" type="button" draggable="true">Base Dam</button>
+            <button data-drag-build-type="elevationDam" type="button" draggable="true">Elevation</button>
+            <button data-drag-build-type="conduit" type="button" draggable="true">Conduit</button>
+            <button data-drag-build-type="powerhouse" type="button" draggable="true">Powerhouse</button>
+          </div>
         </section>
         <p id="phaseLabel" class="phase">Planning</p>
         <p id="modeLabel" class="phase">Mode: Build</p>
@@ -132,10 +163,14 @@
           <section>
             <h3>Values</h3>
             <ul>
+              <li><strong>Land Tile</strong> is the main build surface for power and distribution structures.</li>
+              <li><strong>Shore Tile</strong> connects land builds to nearby water and supports dams, conduits, and powerhouses.</li>
+              <li><strong>Water Depth Tile</strong> represents channels or reservoir cells where depth matters most.</li>
               <li><strong>Credits</strong> pay construction costs and are gained from hydropower and irrigation.</li>
               <li><strong>Engineers</strong> limit how many build orders can be committed this turn.</li>
               <li><strong>Excavators/Mixers</strong> are locked until the construction job finishes.</li>
               <li><strong>Stored Water</strong> is your water reserve behind dams, measured as volume.</li>
+              <li><strong>Headwater Sources</strong> refill upstream cells each committed turn; dry weather weakens them.</li>
               <li><strong>Hold turns</strong> mean the reserve must stay valid for several resolved turns.</li>
               <li><strong>Net Income</strong> is last turn income minus flood or drought penalties.</li>
               <li><strong>Hydrology details</strong> show water depth and flow for debugging basin behavior.</li>

@@ -6,6 +6,7 @@ import {
   PlayerResourceComponent,
   StructureComponent,
   StructureKind,
+  SurfaceKind,
   Terrain,
   Water,
   getFlow,
@@ -47,6 +48,23 @@ const isPowerhouse = (eid: number): boolean =>
 const isConduit = (eid: number): boolean =>
   StructureComponent.active[eid] === 1 &&
   StructureComponent.type[eid] === StructureKind.conduit;
+
+const getUncontrolledFloodDepth = (eid: number, waterDepth: number): number => {
+  if (isDam(eid)) {
+    const controlledStorageDepth = Math.max(
+      0,
+      StructureComponent.maxWaterDepth[eid],
+    );
+
+    return Math.max(0, waterDepth - controlledStorageDepth - 0.25);
+  }
+
+  if (isConduit(eid)) {
+    return Math.max(0, waterDepth - 0.95);
+  }
+
+  return Math.max(0, waterDepth - 0.85);
+};
 
 const getNeighborEid = (
   input: ResourceEconomyInput,
@@ -224,8 +242,13 @@ export const ResourceEconomySystem = (
       );
     }
 
-    const isNaturallyIrrigated = waterDepth >= 0.05 && waterDepth <= 0.55;
+    const isFarmSurface =
+      Terrain.surfaceType[eid] === SurfaceKind.land ||
+      Terrain.surfaceType[eid] === SurfaceKind.shore;
+    const isNaturallyIrrigated =
+      isFarmSurface && waterDepth >= 0.05 && waterDepth <= 0.55;
     const isCanalSupplied =
+      isFarmSurface &&
       hasConduitIrrigationSupport(input, eid) &&
       waterDepth >= 0.02 &&
       waterDepth <= 0.65;
@@ -235,9 +258,11 @@ export const ResourceEconomySystem = (
       irrigationCredits += 8;
     }
 
-    if (waterDepth > 0.8) {
+    const uncontrolledFloodDepth = getUncontrolledFloodDepth(eid, waterDepth);
+
+    if (uncontrolledFloodDepth > 0) {
       floodedCells += 1;
-      floodPenaltyCredits += Math.round((waterDepth - 0.8) * 45);
+      floodPenaltyCredits += Math.round(uncontrolledFloodDepth * 26);
     }
 
     if (waterDepth < 0.015) {

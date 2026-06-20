@@ -8,6 +8,7 @@ export interface WeatherSystemInput {
   readonly currentState: WeatherState;
   readonly random01: number;
   readonly sampleDurationSeconds?: number;
+  readonly forcedState?: WeatherState;
 }
 
 export const WEATHER_STATES = [
@@ -96,11 +97,9 @@ export const WeatherSystem = (
   world: IWorld,
   input: WeatherSystemInput,
 ): WeatherSample => {
-  const nextState = sampleNextWeatherState(
-    input.currentState,
-    input.season,
-    input.random01,
-  );
+  const nextState =
+    input.forcedState ??
+    sampleNextWeatherState(input.currentState, input.season, input.random01);
   const precipitationRate = PRECIPITATION_RATE_BY_WEATHER[nextState];
   const evapotranspirationRate = EVAPOTRANSPIRATION_RATE_BY_WEATHER[nextState];
   const sampleDurationSeconds = Math.max(0, input.sampleDurationSeconds ?? 86400);
