@@ -3,6 +3,7 @@ import {
   AmbientLight,
   BoxGeometry,
   Color,
+  ConeGeometry,
   CylinderGeometry,
   DirectionalLight,
   DynamicDrawUsage,
@@ -10,6 +11,7 @@ import {
   InstancedMesh,
   Material,
   Matrix4,
+  Mesh,
   MeshBasicMaterial,
   MeshStandardMaterial,
   PerspectiveCamera,
@@ -83,13 +85,18 @@ const RenderHex = defineHex({
 
 const RAIN_DROP_COUNT = 120;
 
+interface StructureVisual {
+  readonly group: Group;
+  readonly structureType: number;
+  readonly underConstruction: boolean;
+}
+
 export class HydroRenderer {
   private readonly renderer: WebGLRenderer;
   private readonly scene: Scene;
   private readonly camera: PerspectiveCamera;
   private readonly terrainMesh: InstancedMesh;
-  private readonly waterMesh: InstancedMesh;
-  private readonly structureMesh: InstancedMesh;
+  private readonly structureLayer = new Group();
   private readonly rainMesh: InstancedMesh;
   private readonly ambientLight: AmbientLight;
   private readonly sunLight: DirectionalLight;
@@ -106,6 +113,7 @@ export class HydroRenderer {
   private readonly displayedWaterDepths = new Map<number, number>();
   private readonly previousStructureTypes = new Map<number, number>();
   private readonly structurePulseUntil = new Map<number, number>();
+  private readonly structureVisuals = new Map<number, StructureVisual>();
   private readonly hiddenScale = new Vector3(0, 0, 0);
   private readonly raycaster = new Raycaster();
   private readonly pointerNdc = new Vector2();
@@ -150,32 +158,6 @@ export class HydroRenderer {
       metalness: 0.02,
     });
 
-    const waterGeometry = new CylinderGeometry(
-      this.tileRadiusMeters * 0.94,
-      this.tileRadiusMeters * 0.94,
-      0.08,
-      6,
-      1,
-      false,
-    );
-    const waterMaterial = new MeshStandardMaterial({
-      color: '#2d95c7',
-      emissive: '#075f90',
-      emissiveIntensity: 0.28,
-      transparent: true,
-      opacity: 0.86,
-      roughness: 0.36,
-      metalness: 0.02,
-    });
-
-    const structureGeometry = new BoxGeometry(0.58, 0.72, 0.58);
-    const structureMaterial = new MeshStandardMaterial({
-      color: '#ffffff',
-      emissive: '#15232a',
-      emissiveIntensity: 0.22,
-      roughness: 0.5,
-      metalness: 0.04,
-    });
     const rainGeometry = new BoxGeometry(0.025, 1.25, 0.025);
     const rainMaterial = new MeshBasicMaterial({
       color: '#9bd8f2',
@@ -184,24 +166,14 @@ export class HydroRenderer {
     });
 
     this.terrainMesh = new InstancedMesh(terrainGeometry, terrainMaterial, this.maxCells);
-    this.waterMesh = new InstancedMesh(waterGeometry, waterMaterial, this.maxCells);
-    this.structureMesh = new InstancedMesh(
-      structureGeometry,
-      structureMaterial,
-      this.maxCells,
-    );
     this.rainMesh = new InstancedMesh(rainGeometry, rainMaterial, RAIN_DROP_COUNT);
     this.terrainMesh.instanceMatrix.setUsage(DynamicDrawUsage);
-    this.waterMesh.instanceMatrix.setUsage(DynamicDrawUsage);
-    this.structureMesh.instanceMatrix.setUsage(DynamicDrawUsage);
     this.rainMesh.instanceMatrix.setUsage(DynamicDrawUsage);
     this.terrainMesh.count = this.cells.length;
-    this.waterMesh.count = this.cells.length;
-    this.structureMesh.count = this.cells.length;
     this.rainMesh.count = 0;
 
     const basinGroup = new Group();
-    basinGroup.add(this.terrainMesh, this.structureMesh);
+    basinGroup.add(this.terrainMesh, this.structureLayer);
     basinGroup.rotation.y = Math.PI / 6;
     this.scene.add(basinGroup);
 
@@ -237,8 +209,7 @@ export class HydroRenderer {
 
     this.cells = cells;
     this.terrainMesh.count = cells.length;
-    this.waterMesh.count = cells.length;
-    this.structureMesh.count = cells.length;
+    this.removeStaleStructureVisuals(cells);
     this.update();
   }
 
@@ -301,36 +272,24 @@ export class HydroRenderer {
       }
       this.terrainMesh.setColorAt(index, this.color);
 
-      const hasStructure =
-        Terrain.active[cell.eid] === 1 &&
-        displayStructureType !== StructureCode.none;
-      const structureScale = hasStructure
-        ? this.getStructureScale(cell.eid, elapsedSeconds)
-        : this.hiddenScale;
-      this.matrix.compose(
-        new Vector3(position.x, terrainHeight + structureScale.y * 0.36, position.z),
-        this.structureMesh.quaternion,
-        structureScale,
+      this.updateStructureVisual(
+        cell,
+        displayStructureType,
+        position,
+        terrainHeight,
+        elapsedSeconds,
       );
-      this.structureMesh.setMatrixAt(index, this.matrix);
-      this.structureMesh.setColorAt(index, this.getStructureColor(cell.eid));
     }
 
     for (let index = this.cells.length; index < this.maxCells; index += 1) {
       this.matrix.compose(new Vector3(0, -100, 0), this.terrainMesh.quaternion, this.hiddenScale);
       this.terrainMesh.setMatrixAt(index, this.matrix);
-      this.structureMesh.setMatrixAt(index, this.matrix);
     }
 
     this.terrainMesh.instanceMatrix.needsUpdate = true;
-    this.structureMesh.instanceMatrix.needsUpdate = true;
 
     if (this.terrainMesh.instanceColor) {
       this.terrainMesh.instanceColor.needsUpdate = true;
-    }
-
-    if (this.structureMesh.instanceColor) {
-      this.structureMesh.instanceColor.needsUpdate = true;
     }
 
     this.updateWeatherEffects(elapsedSeconds);
@@ -445,74 +404,246 @@ export class HydroRenderer {
     }
   }
 
-  private getStructureScale(eid: number, elapsedSeconds: number): Vector3 {
-    const structureType = Number(Structure.type[eid]);
-    const pendingType = Number(Structure.pendingType[eid]);
-    const displayStructureType =
-      structureType !== StructureCode.none ? structureType : pendingType;
-    const pulseUntil = this.structurePulseUntil.get(eid) ?? 0;
-    const pulseRemaining = Math.max(0, pulseUntil - elapsedSeconds);
-    const pulse = pulseRemaining > 0 ? 1 + Math.sin(pulseRemaining * 18) * 0.08 : 1;
-    const applyPulse = (scale: Vector3): Vector3 =>
-      scale.multiplyScalar(pulse).setY(scale.y / pulse);
+  private updateStructureVisual(
+    cell: BasinRenderCell,
+    structureType: number,
+    position: { readonly x: number; readonly z: number },
+    terrainHeight: number,
+    elapsedSeconds: number,
+  ): void {
+    const underConstruction = Structure.constructionTurnsRemaining[cell.eid] > 0;
+    const hasStructure =
+      Terrain.active[cell.eid] === 1 && structureType !== StructureCode.none;
+    const existing = this.structureVisuals.get(cell.eid);
 
-    if (displayStructureType === StructureCode.none) {
-      return this.hiddenScale;
+    if (!hasStructure) {
+      if (existing) {
+        this.structureLayer.remove(existing.group);
+        this.structureVisuals.delete(cell.eid);
+      }
+      return;
     }
 
-    const constructionProgress =
-      Structure.constructionTurnsRemaining[eid] > 0
-        ? Math.max(0.28, Math.min(1, Structure.constructionProgress[eid]))
-        : 1;
-    const applyConstructionProgress = (scale: Vector3): Vector3 =>
-      scale.multiply(new Vector3(1, constructionProgress, 1));
-
-    if (displayStructureType === StructureKind.baseDam) {
-      return applyConstructionProgress(applyPulse(
-        new Vector3(2.1, 0.72 + Math.max(0.2, Structure.damHeight[eid]) * 0.82, 0.88),
-      ));
+    let visual = existing;
+    if (
+      !visual ||
+      visual.structureType !== structureType ||
+      visual.underConstruction !== underConstruction
+    ) {
+      if (visual) {
+        this.structureLayer.remove(visual.group);
+      }
+      visual = {
+        group: this.createStructureModel(structureType, underConstruction),
+        structureType,
+        underConstruction,
+      };
+      this.structureVisuals.set(cell.eid, visual);
+      this.structureLayer.add(visual.group);
     }
 
-    if (displayStructureType === StructureKind.elevationDam) {
-      return applyConstructionProgress(applyPulse(
-        new Vector3(1.85, 0.92 + Math.max(0, Structure.level[eid]) * 0.24, 0.78),
-      ));
-    }
+    const pulseRemaining = Math.max(
+      0,
+      (this.structurePulseUntil.get(cell.eid) ?? 0) - elapsedSeconds,
+    );
+    const pulse = pulseRemaining > 0 ? 1 + Math.sin(pulseRemaining * 18) * 0.06 : 1;
+    const constructionProgress = underConstruction
+      ? Math.max(0.25, Math.min(1, Structure.constructionProgress[cell.eid]))
+      : 1;
 
-    if (displayStructureType === StructureKind.conduit) {
-      return applyConstructionProgress(applyPulse(new Vector3(1.95, 0.3, 0.42)));
-    }
-
-    if (displayStructureType === StructureKind.powerhouse) {
-      return applyConstructionProgress(applyPulse(new Vector3(1.02, 1.18, 1.02)));
-    }
-
-    return applyConstructionProgress(applyPulse(new Vector3(1, 1, 1)));
+    visual.group.position.set(
+      position.x,
+      terrainHeight * 0.72 - 0.32,
+      position.z,
+    );
+    visual.group.rotation.y = this.getStructureRotation(cell, structureType);
+    visual.group.scale.set(pulse, constructionProgress, pulse);
+    visual.group.visible = true;
   }
 
-  private getStructureColor(eid: number): Color {
-    const structureType = Number(Structure.type[eid]);
-    const pendingType = Number(Structure.pendingType[eid]);
-    const displayStructureType =
-      structureType !== StructureCode.none ? structureType : pendingType;
-
-    if (Structure.constructionTurnsRemaining[eid] > 0) {
-      return CONSTRUCTION_COLOR;
+  private createStructureModel(
+    structureType: number,
+    underConstruction: boolean,
+  ): Group {
+    if (structureType === StructureKind.baseDam) {
+      return this.createDamModel(false, underConstruction);
     }
 
-    if (displayStructureType === StructureKind.elevationDam) {
-      return ELEVATION_DAM_COLOR;
+    if (structureType === StructureKind.elevationDam) {
+      return this.createDamModel(true, underConstruction);
     }
 
-    if (displayStructureType === StructureKind.conduit) {
-      return CONDUIT_COLOR;
+    if (structureType === StructureKind.conduit) {
+      return this.createConduitModel(underConstruction);
     }
 
-    if (displayStructureType === StructureKind.powerhouse) {
-      return POWERHOUSE_COLOR;
+    return this.createPowerhouseModel(underConstruction);
+  }
+
+  private createDamModel(elevated: boolean, underConstruction: boolean): Group {
+    const group = new Group();
+    const mainColor = elevated ? ELEVATION_DAM_COLOR : DAM_COLOR;
+    const wallMaterial = this.createStructureMaterial(
+      underConstruction ? CONSTRUCTION_COLOR : mainColor,
+      0.08,
+    );
+    const accentMaterial = this.createStructureMaterial(
+      underConstruction ? CONSTRUCTION_COLOR : new Color('#5b6670'),
+      0.22,
+    );
+    const wallHeight = elevated ? 1.05 : 0.72;
+    const wall = new Mesh(new BoxGeometry(2.15, wallHeight, 0.34), wallMaterial);
+    const buttressGeometry = new BoxGeometry(0.3, wallHeight + 0.18, 0.68);
+    const leftButtress = new Mesh(buttressGeometry, wallMaterial);
+    const rightButtress = new Mesh(buttressGeometry, wallMaterial);
+    const spillway = new Mesh(
+      new BoxGeometry(0.72, 0.14, 0.52),
+      accentMaterial,
+    );
+
+    wall.position.y = wallHeight * 0.5;
+    leftButtress.position.set(-0.82, (wallHeight + 0.18) * 0.5, 0);
+    rightButtress.position.set(0.82, (wallHeight + 0.18) * 0.5, 0);
+    spillway.position.set(0, wallHeight + 0.05, 0);
+    group.add(wall, leftButtress, rightButtress, spillway);
+
+    for (let gateIndex = -1; gateIndex <= 1; gateIndex += 1) {
+      const gate = new Mesh(new BoxGeometry(0.16, wallHeight * 0.58, 0.08), accentMaterial);
+
+      gate.position.set(gateIndex * 0.24, wallHeight * 0.4, 0.21);
+      group.add(gate);
     }
 
-    return DAM_COLOR;
+    if (elevated) {
+      const cap = new Mesh(new BoxGeometry(2.32, 0.12, 0.48), wallMaterial);
+
+      cap.position.y = wallHeight + 0.16;
+      group.add(cap);
+    }
+
+    return group;
+  }
+
+  private createConduitModel(underConstruction: boolean): Group {
+    const group = new Group();
+    const pipeMaterial = this.createStructureMaterial(
+      underConstruction ? CONSTRUCTION_COLOR : CONDUIT_COLOR,
+      0.34,
+    );
+    const ringMaterial = this.createStructureMaterial(
+      underConstruction ? CONSTRUCTION_COLOR : new Color('#54606a'),
+      0.48,
+    );
+    const bed = new Mesh(new BoxGeometry(1.9, 0.14, 0.54), ringMaterial);
+    const pipe = new Mesh(new CylinderGeometry(0.18, 0.18, 1.7, 12), pipeMaterial);
+
+    bed.position.y = 0.07;
+    pipe.rotation.z = Math.PI / 2;
+    pipe.position.y = 0.28;
+    group.add(bed, pipe);
+
+    for (const x of [-0.58, 0.58]) {
+      const ring = new Mesh(new CylinderGeometry(0.23, 0.23, 0.1, 12), ringMaterial);
+
+      ring.rotation.z = Math.PI / 2;
+      ring.position.set(x, 0.28, 0);
+      group.add(ring);
+    }
+
+    return group;
+  }
+
+  private createPowerhouseModel(underConstruction: boolean): Group {
+    const group = new Group();
+    const bodyMaterial = this.createStructureMaterial(
+      underConstruction ? CONSTRUCTION_COLOR : POWERHOUSE_COLOR,
+      0.06,
+    );
+    const roofMaterial = this.createStructureMaterial(
+      underConstruction ? CONSTRUCTION_COLOR : new Color('#546b75'),
+      0.18,
+    );
+    const turbineMaterial = this.createStructureMaterial(
+      underConstruction ? CONSTRUCTION_COLOR : new Color('#2e8da6'),
+      0.42,
+    );
+    const base = new Mesh(new BoxGeometry(1.02, 0.22, 0.9), roofMaterial);
+    const body = new Mesh(new BoxGeometry(0.88, 0.64, 0.76), bodyMaterial);
+    const roof = new Mesh(new ConeGeometry(0.67, 0.34, 4), roofMaterial);
+    const intake = new Mesh(new BoxGeometry(0.42, 0.34, 0.72), roofMaterial);
+    const turbine = new Mesh(
+      new CylinderGeometry(0.22, 0.22, 0.22, 14),
+      turbineMaterial,
+    );
+
+    base.position.y = 0.11;
+    body.position.y = 0.48;
+    roof.position.y = 0.97;
+    roof.rotation.y = Math.PI / 4;
+    intake.position.set(-0.58, 0.28, 0);
+    turbine.rotation.x = Math.PI / 2;
+    turbine.position.set(0.12, 0.45, 0.49);
+    group.add(base, body, roof, intake, turbine);
+
+    return group;
+  }
+
+  private createStructureMaterial(color: Color, metalness: number): MeshStandardMaterial {
+    return new MeshStandardMaterial({
+      color,
+      roughness: 0.58,
+      metalness,
+    });
+  }
+
+  private getStructureRotation(cell: BasinRenderCell, structureType: number): number {
+    const center = this.hexToWorld(cell.q, cell.r);
+    const neighbors = this.cells.filter((candidate) => {
+      const deltaQ = candidate.q - cell.q;
+      const deltaR = candidate.r - cell.r;
+
+      return (
+        (deltaQ === 1 && deltaR === 0) ||
+        (deltaQ === 1 && deltaR === -1) ||
+        (deltaQ === 0 && deltaR === -1) ||
+        (deltaQ === -1 && deltaR === 0) ||
+        (deltaQ === -1 && deltaR === 1) ||
+        (deltaQ === 0 && deltaR === 1)
+      );
+    });
+    const waterNeighbors = neighbors.filter(
+      (candidate) => Terrain.surfaceType[candidate.eid] === SurfaceKind.water,
+    );
+    const target =
+      waterNeighbors.sort(
+        (left, right) => Terrain.elevation[left.eid] - Terrain.elevation[right.eid],
+      )[0] ?? neighbors[0];
+
+    if (!target) {
+      return 0;
+    }
+
+    const targetPosition = this.hexToWorld(target.q, target.r);
+    const directionAngle = Math.atan2(
+      -(targetPosition.z - center.z),
+      targetPosition.x - center.x,
+    );
+
+    return structureType === StructureKind.baseDam ||
+      structureType === StructureKind.elevationDam
+      ? directionAngle + Math.PI / 2
+      : directionAngle;
+  }
+
+  private removeStaleStructureVisuals(cells: readonly BasinRenderCell[]): void {
+    const activeEids = new Set(cells.map((cell) => cell.eid));
+
+    for (const [eid, visual] of this.structureVisuals) {
+      if (!activeEids.has(eid)) {
+        this.structureLayer.remove(visual.group);
+        this.structureVisuals.delete(eid);
+      }
+    }
   }
 
   private getCellAtPointer(event: PointerEvent | MouseEvent): BasinRenderCell | undefined {

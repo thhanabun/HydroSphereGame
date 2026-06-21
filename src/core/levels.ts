@@ -315,11 +315,18 @@ export const CAMPAIGN_LEVELS: readonly LevelDefinition[] = [
     objectives: {
       minResolvedTurns: 3,
       minBuiltBaseDams: 1,
-      minReservoirWaterCubicMeters: 120,
+      minReservoirWaterCubicMeters: 80,
       minCredits: 300,
       maxTurns: 5,
     },
-    seed: withoutInfrastructure(SANDBOX_LEVEL.seed),
+    seed: withoutInfrastructure(SANDBOX_LEVEL.seed).map((cell) =>
+      cell.q === 0 && cell.r === 0
+        ? {
+            ...cell,
+            waterDepth: 0.42,
+          }
+        : cell,
+    ),
   },
   {
     id: 'level-2',
@@ -359,14 +366,15 @@ export const CAMPAIGN_LEVELS: readonly LevelDefinition[] = [
     id: 'level-4',
     title: '4. Flood Season',
     description: 'Survive monsoon water while preserving sustainability.',
-    hint: 'Elevate an existing dam to hold back deeper water, then watch sustainability and flood penalties.',
+    hint: 'Elevate the dam, then survive both heavy-rain turns through resolved turn 4 while keeping water controlled and sustainability above target.',
     weatherScript: ['lightRain', 'heavyRain', 'cloudy', 'heavyRain', 'lightRain', 'cloudy'],
     allowGridExpansion: true,
     resources: { credits: 840, engineers: 4, excavators: 3, concreteMixers: 3 },
     objectives: {
+      minResolvedTurns: 4,
       minBuiltElevationDamLevels: 1,
+      minReservoirWaterCubicMeters: 350,
       minSustainabilityScore: 70,
-      minCumulativeNetIncomeCredits: 90,
       minCredits: 300,
       maxTurns: 6,
     },

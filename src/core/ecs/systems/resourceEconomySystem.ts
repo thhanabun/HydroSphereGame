@@ -202,6 +202,8 @@ export const ResourceEconomySystem = (
   let floodedCells = 0;
   let droughtCells = 0;
   let productiveIrrigationCells = 0;
+  let activeCells = 0;
+  let farmSurfaceCells = 0;
 
   for (let index = 0; index < eids.length; index += 1) {
     const eid = eids[index];
@@ -209,6 +211,8 @@ export const ResourceEconomySystem = (
     if (Terrain.active[eid] === 0) {
       continue;
     }
+
+    activeCells += 1;
 
     const cellArea =
       Math.max(1, Terrain.cellWidth[eid]) * Math.max(1, Terrain.cellHeight[eid]);
@@ -245,6 +249,9 @@ export const ResourceEconomySystem = (
     const isFarmSurface =
       Terrain.surfaceType[eid] === SurfaceKind.land ||
       Terrain.surfaceType[eid] === SurfaceKind.shore;
+    if (isFarmSurface) {
+      farmSurfaceCells += 1;
+    }
     const isNaturallyIrrigated =
       isFarmSurface && waterDepth >= 0.05 && waterDepth <= 0.55;
     const isCanalSupplied =
@@ -265,15 +272,17 @@ export const ResourceEconomySystem = (
       floodPenaltyCredits += Math.round(uncontrolledFloodDepth * 26);
     }
 
-    if (waterDepth < 0.015) {
+    if (isFarmSurface && waterDepth < 0.015) {
       droughtCells += 1;
-      droughtPenaltyCredits += 6;
+      droughtPenaltyCredits += 2;
     }
   }
 
   const grossIncomeCredits = hydropowerCredits + irrigationCredits;
   const totalPenaltyCredits = floodPenaltyCredits + droughtPenaltyCredits;
   const netIncomeCredits = grossIncomeCredits - totalPenaltyCredits;
+  const floodedRatio = floodedCells / Math.max(1, activeCells);
+  const droughtRatio = droughtCells / Math.max(1, farmSurfaceCells);
 
   PlayerResourceComponent.credits[input.playerResourceEid] += netIncomeCredits;
   PlayerResourceComponent.reservoirWater[input.playerResourceEid] =
@@ -295,8 +304,14 @@ export const ResourceEconomySystem = (
     totalPenaltyCredits,
     netIncomeCredits,
     hydropowerScore: Math.min(100, hydropowerCredits * 2),
-    floodControlScore: Math.max(0, 100 - floodedCells * 16 - floodPenaltyCredits),
+    floodControlScore: Math.max(
+      0,
+      100 - floodedRatio * 70 - Math.min(30, floodPenaltyCredits),
+    ),
     irrigationScore: Math.min(100, productiveIrrigationCells * 14),
-    sustainabilityScore: Math.max(0, 100 - floodedCells * 12 - droughtCells * 10),
+    sustainabilityScore: Math.max(
+      0,
+      100 - floodedRatio * 55 - droughtRatio * 35,
+    ),
   };
 };

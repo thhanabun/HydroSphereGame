@@ -74,6 +74,7 @@ const SIMULATION_CONSTANTS: SimulationConstants = {
 
 const GRID_EXPANSION_COST = 60;
 const MAX_RENDER_CELLS = 96;
+const WEATHER_EVENT_DURATION_SECONDS = 21600;
 const BUILD_LABELS: Readonly<Record<InfrastructureBuildType, string>> = {
   baseDam: 'Base Dam',
   elevationDam: 'Elevation Dam',
@@ -975,7 +976,7 @@ const resolveWeatherForCommittedTurn = (): void => {
     season,
     currentState: forceStormNextTurn ? 'storm' : currentWeather,
     random01: forceStormNextTurn ? 0.99 : Math.random(),
-    sampleDurationSeconds: 86400,
+    sampleDurationSeconds: WEATHER_EVENT_DURATION_SECONDS,
     forcedState: forceStormNextTurn ? 'storm' : fixedCampaignWeather,
   });
 
