@@ -106,13 +106,12 @@
           <button id="resetButton" type="button">Reset Basin</button>
           <button id="menuButton" type="button">Menu</button>
           <button id="addTileModeButton" type="button">Add Tile Mode</button>
-          <button id="commitPlanButton" class="commit-primary" type="button">Commit Plan</button>
-          <p id="turnActionLabel" class="turn-action">Select a hex or resolve the basin without construction.</p>
+          <button id="commitPlanButton" type="button">Commit Plan</button>
         </section>
         <p id="phaseLabel" class="phase">Planning</p>
         <p id="modeLabel" class="phase">Mode: Build</p>
         <p id="queueLabel" class="queue">Queued builds: 0</p>
-        <p id="messageLabel" class="message" role="status" aria-live="polite">Click a hex during Planning.</p>
+        <p id="messageLabel" class="message">Click a hex during Planning.</p>
         <section class="plan-summary" aria-label="Queued build orders">
           <h2>Turn Plan</h2>
           <ol id="pendingBuildList">
@@ -140,23 +139,19 @@
         <div class="palette-buttons">
           <button data-drag-build-type="baseDam" type="button" draggable="true" title="Drag Base Dam onto a Water or Shore tile">
             <span class="model-icon model-base-dam" aria-hidden="true"><i></i></span>
-            <span class="palette-name">Base Dam</span>
-            <small data-build-meta="baseDam"></small>
+            <span>Base Dam</span>
           </button>
           <button data-drag-build-type="elevationDam" type="button" draggable="true" title="Drag Elevation onto an existing dam">
             <span class="model-icon model-elevation" aria-hidden="true"><i></i></span>
-            <span class="palette-name">Elevation</span>
-            <small data-build-meta="elevationDam"></small>
+            <span>Elevation</span>
           </button>
           <button data-drag-build-type="conduit" type="button" draggable="true" title="Drag Conduit onto a Land or Shore tile">
             <span class="model-icon model-conduit" aria-hidden="true"><i></i></span>
-            <span class="palette-name">Conduit</span>
-            <small data-build-meta="conduit"></small>
+            <span>Conduit</span>
           </button>
           <button data-drag-build-type="powerhouse" type="button" draggable="true" title="Drag Powerhouse onto a Land or Shore tile">
             <span class="model-icon model-powerhouse" aria-hidden="true"><i></i></span>
-            <span class="palette-name">Powerhouse</span>
-            <small data-build-meta="powerhouse"></small>
+            <span>Powerhouse</span>
           </button>
         </div>
       </section>
