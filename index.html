@@ -21,6 +21,8 @@
             <button data-level-id="level-3" type="button">3. Irrigation Plain - 6 turns</button>
             <button data-level-id="level-4" type="button">4. Flood Season - 6 turns</button>
             <button data-level-id="level-5" type="button">5. Balanced Basin - 8 turns</button>
+            <button data-level-id="level-6" type="button">6. Twin Tributaries - 8 turns</button>
+            <button data-level-id="level-7" type="button">7. Great River - 9 turns</button>
           </div>
         </div>
       </section>
@@ -106,15 +108,6 @@
           <button id="addTileModeButton" type="button">Add Tile Mode</button>
           <button id="commitPlanButton" type="button">Commit Plan</button>
         </section>
-        <section class="construction-palette" aria-label="Drag construction onto grid">
-          <h2>Build Palette</h2>
-          <div class="palette-buttons">
-            <button data-drag-build-type="baseDam" type="button" draggable="true">Base Dam</button>
-            <button data-drag-build-type="elevationDam" type="button" draggable="true">Elevation</button>
-            <button data-drag-build-type="conduit" type="button" draggable="true">Conduit</button>
-            <button data-drag-build-type="powerhouse" type="button" draggable="true">Powerhouse</button>
-          </div>
-        </section>
         <p id="phaseLabel" class="phase">Planning</p>
         <p id="modeLabel" class="phase">Mode: Build</p>
         <p id="queueLabel" class="queue">Queued builds: 0</p>
@@ -140,6 +133,27 @@
           <span id="runnerProgressBar"></span>
         </div>
         <p id="runnerDetailLabel">Solving basin water movement.</p>
+      </section>
+      <section id="constructionPalette" class="construction-palette" aria-label="Drag construction onto grid">
+        <span class="palette-title">Build</span>
+        <div class="palette-buttons">
+          <button data-drag-build-type="baseDam" type="button" draggable="true" title="Drag Base Dam onto a Water or Shore tile">
+            <span class="model-icon model-base-dam" aria-hidden="true"><i></i></span>
+            <span>Base Dam</span>
+          </button>
+          <button data-drag-build-type="elevationDam" type="button" draggable="true" title="Drag Elevation onto an existing dam">
+            <span class="model-icon model-elevation" aria-hidden="true"><i></i></span>
+            <span>Elevation</span>
+          </button>
+          <button data-drag-build-type="conduit" type="button" draggable="true" title="Drag Conduit onto a Land or Shore tile">
+            <span class="model-icon model-conduit" aria-hidden="true"><i></i></span>
+            <span>Conduit</span>
+          </button>
+          <button data-drag-build-type="powerhouse" type="button" draggable="true" title="Drag Powerhouse onto a Land or Shore tile">
+            <span class="model-icon model-powerhouse" aria-hidden="true"><i></i></span>
+            <span>Powerhouse</span>
+          </button>
+        </div>
       </section>
       <aside class="task-panel" aria-label="Objectives and event log">
         <section class="objective-panel" aria-label="Current objective">

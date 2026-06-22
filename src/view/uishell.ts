@@ -175,6 +175,8 @@ export class UIShell {
     requireElement<HTMLButtonElement>('#addTileModeButton');
   private readonly commitPlanButton =
     requireElement<HTMLButtonElement>('#commitPlanButton');
+  private readonly constructionPalette =
+    requireElement<HTMLElement>('#constructionPalette');
   private readonly dragBuildButtons = Array.from(
     document.querySelectorAll<HTMLButtonElement>('[data-drag-build-type]'),
   );
@@ -657,6 +659,7 @@ export class UIShell {
 
   private updateInteractionLock(locked: boolean): void {
     this.interactionLocked = locked;
+    this.constructionPalette.hidden = locked;
     this.hudPanel.classList.toggle('is-locked', locked);
     this.taskPanel.classList.toggle('is-locked', locked);
     this.buildOverlay.classList.toggle('is-locked', locked);

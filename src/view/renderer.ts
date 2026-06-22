@@ -91,6 +91,12 @@ interface StructureVisual {
   readonly underConstruction: boolean;
 }
 
+interface BuildPreview {
+  readonly group: Group;
+  readonly structureType: number;
+  cellEid?: number;
+}
+
 export class HydroRenderer {
   private readonly renderer: WebGLRenderer;
   private readonly scene: Scene;
@@ -114,6 +120,7 @@ export class HydroRenderer {
   private readonly previousStructureTypes = new Map<number, number>();
   private readonly structurePulseUntil = new Map<number, number>();
   private readonly structureVisuals = new Map<number, StructureVisual>();
+  private buildPreview?: BuildPreview;
   private readonly hiddenScale = new Vector3(0, 0, 0);
   private readonly raycaster = new Raycaster();
   private readonly pointerNdc = new Vector2();
@@ -193,7 +200,10 @@ export class HydroRenderer {
       this.handlePointerUp(event),
     );
     this.renderer.domElement.addEventListener('dragover', (event) =>
-      event.preventDefault(),
+      this.handleDragOver(event),
+    );
+    this.renderer.domElement.addEventListener('dragleave', (event) =>
+      this.handleDragLeave(event),
     );
     this.renderer.domElement.addEventListener('drop', (event) =>
       this.handleDrop(event),
@@ -215,6 +225,33 @@ export class HydroRenderer {
 
   public setWeather(weather: WeatherState): void {
     this.currentWeather = weather;
+  }
+
+  public setBuildPreview(structureType?: number): void {
+    if (this.buildPreview) {
+      this.structureLayer.remove(this.buildPreview.group);
+      this.buildPreview = undefined;
+    }
+
+    if (structureType === undefined) {
+      return;
+    }
+
+    const group = this.createStructureModel(structureType, false);
+
+    group.visible = false;
+    group.traverse((child) => {
+      if (child instanceof Mesh && child.material instanceof Material) {
+        const material = child.material.clone();
+
+        material.transparent = true;
+        material.opacity = 0.38;
+        material.depthWrite = false;
+        child.material = material;
+      }
+    });
+    this.buildPreview = { group, structureType };
+    this.structureLayer.add(group);
   }
 
   public update(): void {
@@ -720,9 +757,68 @@ export class HydroRenderer {
       return;
     }
 
+    if (this.buildPreview) {
+      this.buildPreview.group.visible = false;
+      this.buildPreview.cellEid = undefined;
+    }
+
     this.onCellDropped(cell, {
       x: event.clientX,
       y: event.clientY,
     });
+  }
+
+  private handleDragOver(event: DragEvent): void {
+    event.preventDefault();
+
+    if (!this.buildPreview) {
+      return;
+    }
+
+    const cell = this.getCellAtPointer(event);
+
+    if (!cell) {
+      this.buildPreview.group.visible = false;
+      this.buildPreview.cellEid = undefined;
+      return;
+    }
+
+    if (this.buildPreview.cellEid === cell.eid) {
+      return;
+    }
+
+    const position = this.hexToWorld(cell.q, cell.r);
+    const surfaceType = Number(Terrain.surfaceType[cell.eid]);
+    const waterDepth = Math.max(0, Water.depth[cell.eid]);
+    const terrainHeight =
+      0.36 +
+      Terrain.elevation[cell.eid] * 0.16 +
+      (surfaceType === SurfaceKind.water ? Math.min(0.52, waterDepth * 0.42) : 0);
+
+    this.buildPreview.cellEid = cell.eid;
+    this.buildPreview.group.position.set(
+      position.x,
+      terrainHeight * 0.72 - 0.32,
+      position.z,
+    );
+    this.buildPreview.group.rotation.y = this.getStructureRotation(
+      cell,
+      this.buildPreview.structureType,
+    );
+    this.buildPreview.group.scale.set(1.03, 1.03, 1.03);
+    this.buildPreview.group.visible = true;
+  }
+
+  private handleDragLeave(event: DragEvent): void {
+    const relatedTarget = event.relatedTarget;
+
+    if (
+      this.buildPreview &&
+      (!(relatedTarget instanceof Node) ||
+        !this.renderer.domElement.contains(relatedTarget))
+    ) {
+      this.buildPreview.group.visible = false;
+      this.buildPreview.cellEid = undefined;
+    }
   }
 }

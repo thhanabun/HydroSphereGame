@@ -303,6 +303,86 @@ const withoutStructureType = (
       : cell,
   );
 
+const LARGE_BASIN_DIRECTIONS = [
+  [1, 0],
+  [1, -1],
+  [0, -1],
+  [-1, 0],
+  [-1, 1],
+  [0, 1],
+] as const;
+
+const TWIN_RIVER_CELLS = new Set([
+  '-2,-1',
+  '-1,-1',
+  '-1,0',
+  '0,0',
+  '0,1',
+  '0,2',
+  '0,3',
+  '2,-2',
+  '1,-1',
+  '1,0',
+]);
+
+const createLargeBasinSeed = (
+  layout: 'twinRivers' | 'greatRiver',
+): readonly BasinCellSeed[] => {
+  const coordinates: { readonly q: number; readonly r: number }[] = [];
+
+  for (let q = -3; q <= 3; q += 1) {
+    const minR = Math.max(-3, -q - 3);
+    const maxR = Math.min(3, -q + 3);
+
+    for (let r = minR; r <= maxR; r += 1) {
+      coordinates.push({ q, r });
+    }
+  }
+
+  const isWaterCell = (q: number, r: number): boolean =>
+    layout === 'twinRivers'
+      ? TWIN_RIVER_CELLS.has(`${q},${r}`)
+      : q === 0 || q === -1;
+
+  return coordinates.map(({ q, r }) => {
+    const waterCell = isWaterCell(q, r);
+    const shoreCell =
+      !waterCell &&
+      LARGE_BASIN_DIRECTIONS.some(([dq, dr]) => isWaterCell(q + dq, r + dr));
+    const structureType =
+      q === 0 && r === 0
+        ? StructureKind.baseDam
+        : layout === 'twinRivers' && q === -1 && r === 1
+          ? StructureKind.powerhouse
+          : StructureKind.none;
+    const sourceCell =
+      layout === 'twinRivers'
+        ? (q === -2 && r === -1) || (q === 2 && r === -2)
+        : (q === 0 && r === -3) || (q === -1 && r === -2);
+    const surfaceType = waterCell
+      ? SurfaceKind.water
+      : shoreCell
+        ? SurfaceKind.shore
+        : SurfaceKind.land;
+
+    return {
+      q,
+      r,
+      elevation: 1.25 - (r + 3) * 0.18 + Math.abs(q) * 0.04,
+      waterDepth: waterCell ? 0.28 + Math.max(0, r) * 0.035 : shoreCell ? 0.055 : 0.025,
+      curveNumber: waterCell ? 80 : shoreCell ? 74 : 66,
+      structureType,
+      damHeight: structureType === StructureKind.baseDam ? 0.65 : 0,
+      maxWaterDepth: structureType === StructureKind.baseDam ? 0.65 : 0,
+      sourceDepthPerTurn: sourceCell ? 0.08 : 0,
+      surfaceType,
+    };
+  });
+};
+
+const TWIN_RIVERS_LEVEL_SEED = createLargeBasinSeed('twinRivers');
+const GREAT_RIVER_LEVEL_SEED = createLargeBasinSeed('greatRiver');
+
 export const CAMPAIGN_LEVELS: readonly LevelDefinition[] = [
   {
     id: 'level-1',
@@ -411,5 +491,64 @@ export const CAMPAIGN_LEVELS: readonly LevelDefinition[] = [
       maxTurns: 8,
     },
     seed: SANDBOX_LEVEL.seed,
+  },
+  {
+    id: 'level-6',
+    title: '6. Twin Tributaries',
+    description: 'Manage two headwater branches that merge into one shared basin.',
+    hint: 'Build Conduits on Shore tiles q-2, r0 and q2, r-1 to distribute both tributaries before they merge.',
+    weatherScript: [
+      'cloudy',
+      'lightRain',
+      'cloudy',
+      'heavyRain',
+      'sunny',
+      'lightRain',
+      'cloudy',
+      'sunny',
+    ],
+    allowGridExpansion: false,
+    resources: { credits: 1100, engineers: 5, excavators: 4, concreteMixers: 3 },
+    objectives: {
+      minResolvedTurns: 4,
+      minBuiltConduits: 2,
+      minReservoirWaterCubicMeters: 300,
+      minIrrigationScore: 70,
+      minCumulativeNetIncomeCredits: 120,
+      minSustainabilityScore: 65,
+      minCredits: 450,
+      maxTurns: 8,
+    },
+    seed: TWIN_RIVERS_LEVEL_SEED,
+  },
+  {
+    id: 'level-7',
+    title: '7. Great River',
+    description: 'Control a broad river carrying regional-scale water volume.',
+    hint: 'Elevate the central dam at q0, r0 and build a Powerhouse on the Shore tile q1, r0 before peak flow arrives.',
+    weatherScript: [
+      'cloudy',
+      'lightRain',
+      'heavyRain',
+      'cloudy',
+      'heavyRain',
+      'lightRain',
+      'sunny',
+      'cloudy',
+      'sunny',
+    ],
+    allowGridExpansion: false,
+    resources: { credits: 1300, engineers: 6, excavators: 4, concreteMixers: 5 },
+    objectives: {
+      minResolvedTurns: 5,
+      minBuiltElevationDamLevels: 1,
+      minBuiltPowerhouses: 1,
+      minReservoirWaterCubicMeters: 600,
+      minHydropowerScore: 50,
+      minSustainabilityScore: 60,
+      minCredits: 500,
+      maxTurns: 9,
+    },
+    seed: GREAT_RIVER_LEVEL_SEED,
   },
 ];

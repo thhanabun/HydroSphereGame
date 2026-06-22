@@ -62,6 +62,14 @@ const ROUTES: Readonly<
     { turn: 1, q: 1, r: 0, buildType: 'powerhouse' },
     { turn: 1, q: -2, r: 1, buildType: 'conduit' },
   ],
+  'level-6': [
+    { turn: 1, q: -2, r: 0, buildType: 'conduit' },
+    { turn: 1, q: 2, r: -1, buildType: 'conduit' },
+  ],
+  'level-7': [
+    { turn: 1, q: 0, r: 0, buildType: 'elevationDam' },
+    { turn: 1, q: 1, r: 0, buildType: 'powerhouse' },
+  ],
 };
 
 const coordKey = (q: number, r: number): string => `${q},${r}`;

@@ -9,7 +9,7 @@
     "build": "tsc --noEmit && node scripts/build.mjs",
     "balance:audit": "node scripts/run-balance-audit.mjs",
     "preview": "node scripts/preview.mjs",
-    "validate": "npm run typecheck && npm run build",
+    "validate": "npm run typecheck && npm run balance:audit && npm run build",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

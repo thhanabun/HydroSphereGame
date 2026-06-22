@@ -81,6 +81,12 @@ const BUILD_LABELS: Readonly<Record<InfrastructureBuildType, string>> = {
   conduit: 'Conduit',
   powerhouse: 'Powerhouse',
 };
+const BUILD_STRUCTURE_KINDS: Readonly<Record<InfrastructureBuildType, number>> = {
+  baseDam: StructureKind.baseDam,
+  elevationDam: StructureKind.elevationDam,
+  conduit: StructureKind.conduit,
+  powerhouse: StructureKind.powerhouse,
+};
 const SANDBOX_SEASON_PATTERN: readonly Season[] = [
   'dry',
   'dry',
@@ -710,10 +716,12 @@ const uiShell = new UIShell({
   onBuildSelected: queueBuild,
   onBuildDragStarted: (buildType) => {
     draggedBuildType = buildType;
+    hydroRenderer.setBuildPreview(BUILD_STRUCTURE_KINDS[buildType]);
     uiShell.setMessage(`Drag ${BUILD_LABELS[buildType]} onto a hex to queue it.`);
   },
   onBuildDragEnded: () => {
     draggedBuildType = undefined;
+    hydroRenderer.setBuildPreview();
   },
   onCancelBuildCommand: cancelBuildCommand,
   onAddTileDirectionSelected: addTileAdjacentToSelectedCell,
@@ -776,6 +784,7 @@ const hydroRenderer = new HydroRenderer(uiShell.viewport, {
     const buildType = draggedBuildType;
 
     draggedBuildType = undefined;
+    hydroRenderer.setBuildPreview();
     queueBuild(buildType);
   },
   onCellDragged: (cell, direction) => {
