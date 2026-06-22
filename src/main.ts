@@ -1060,6 +1060,7 @@ function queueBuild(buildType: InfrastructureBuildType): void {
   }
 
   if (!selectedCell) {
+    uiShell.setMessage('Select a hex first, then click a construction or drag it onto the map.');
     return;
   }
 

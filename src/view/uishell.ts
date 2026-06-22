@@ -1,4 +1,7 @@
-import type { InfrastructureBuildType } from '../core/commands/buildCommands';
+import {
+  INFRASTRUCTURE_COSTS,
+  type InfrastructureBuildType,
+} from '../core/commands/buildCommands';
 import type { LevelDefinition, LevelObjectives } from '../core/levels';
 import type { WeatherState } from '../core/types';
 import type { BasinRenderCell } from './renderer';
@@ -153,6 +156,7 @@ export class UIShell {
   private readonly modeLabel = requireElement<HTMLElement>('#modeLabel');
   private readonly queueLabel = requireElement<HTMLElement>('#queueLabel');
   private readonly messageLabel = requireElement<HTMLElement>('#messageLabel');
+  private readonly turnActionLabel = requireElement<HTMLElement>('#turnActionLabel');
   private readonly pendingBuildList =
     requireElement<HTMLOListElement>('#pendingBuildList');
   private readonly activeConstructionList =
@@ -221,6 +225,7 @@ export class UIShell {
   private readonly outcomeMenuButton =
     requireElement<HTMLButtonElement>('#outcomeMenuButton');
   private interactionLocked = false;
+  private hasLevelProgress = false;
   private outcomePrimaryAction: OutcomeActionOptions['primaryAction'] = 'retry';
   private readonly buildOptionBlocked: Record<InfrastructureBuildType, boolean> = {
     baseDam: false,
@@ -241,8 +246,22 @@ export class UIShell {
       });
     }
     this.stormButton.addEventListener('click', callbacks.onStormPulse);
-    this.resetButton.addEventListener('click', callbacks.onReset);
-    this.menuButton.addEventListener('click', callbacks.onMenuRequested);
+    this.resetButton.addEventListener('click', () => {
+      if (
+        !this.hasLevelProgress ||
+        window.confirm('Reset this basin and discard the current level progress?')
+      ) {
+        callbacks.onReset();
+      }
+    });
+    this.menuButton.addEventListener('click', () => {
+      if (
+        !this.hasLevelProgress ||
+        window.confirm('Return to the menu and discard the current level progress?')
+      ) {
+        callbacks.onMenuRequested();
+      }
+    });
     this.outcomePrimaryButton.addEventListener('click', () => {
       if (this.outcomePrimaryAction === 'nextLevel') {
         callbacks.onNextLevel();
@@ -257,6 +276,18 @@ export class UIShell {
     this.addTileModeButton.addEventListener('click', callbacks.onToggleAddTileMode);
     this.commitPlanButton.addEventListener('click', callbacks.onCommitPlan);
     for (const button of this.dragBuildButtons) {
+      const buildType = button.dataset.dragBuildType as InfrastructureBuildType | undefined;
+
+      if (buildType) {
+        const meta = button.querySelector<HTMLElement>('[data-build-meta]');
+        const cost = INFRASTRUCTURE_COSTS[buildType];
+
+        if (meta) {
+          meta.textContent = `${cost.credits} cr | ${cost.buildTurns} turn${cost.buildTurns === 1 ? '' : 's'}`;
+        }
+
+        button.addEventListener('click', () => callbacks.onBuildSelected(buildType));
+      }
       button.addEventListener('dragstart', (event) => {
         const buildType = button.dataset.dragBuildType as InfrastructureBuildType | undefined;
 
@@ -270,6 +301,12 @@ export class UIShell {
       });
       button.addEventListener('dragend', callbacks.onBuildDragEnded);
     }
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') {
+        this.hideBuildMenu();
+        this.hideAddTileMenu();
+      }
+    });
     this.pendingBuildList.addEventListener('click', (event) => {
       const target = event.target;
 
@@ -321,6 +358,10 @@ export class UIShell {
       snapshot.resources.lastNetIncomeCredits >= 0
         ? `+${snapshot.resources.lastNetIncomeCredits}`
         : `${snapshot.resources.lastNetIncomeCredits}`;
+    this.incomeLabel.classList.toggle(
+      'is-negative',
+      snapshot.resources.lastNetIncomeCredits < 0,
+    );
     this.hydropowerLabel.textContent = `${Math.round(
       snapshot.objectiveProgress.hydropowerScore,
     )}`;
@@ -346,9 +387,24 @@ export class UIShell {
     this.stormButton.hidden = !snapshot.canUseStormPulse;
     this.addTileModeButton.hidden = !snapshot.canUseAddTileMode;
     this.queueLabel.textContent = `Queued builds: ${snapshot.queuedBuildCount}`;
-    this.commitPlanButton.textContent = snapshot.interactionLocked
-      ? 'Resolving Turn'
-      : `Commit Turn ${snapshot.turn}`;
+    const activeConstructionCount = snapshot.activeConstructions.length;
+    this.hasLevelProgress =
+      snapshot.objectiveProgress.turn > 0 ||
+      snapshot.queuedBuildCount > 0 ||
+      activeConstructionCount > 0;
+    if (snapshot.interactionLocked) {
+      this.commitPlanButton.textContent = 'Resolving Turn';
+      this.turnActionLabel.textContent = snapshot.turnResolutionDetail;
+    } else if (snapshot.queuedBuildCount > 0) {
+      this.commitPlanButton.textContent = `Commit ${snapshot.queuedBuildCount} Build${snapshot.queuedBuildCount === 1 ? '' : 's'}`;
+      this.turnActionLabel.textContent = `Start the queued construction and resolve Turn ${snapshot.turn}.`;
+    } else if (activeConstructionCount > 0) {
+      this.commitPlanButton.textContent = 'Advance Construction';
+      this.turnActionLabel.textContent = `${activeConstructionCount} project${activeConstructionCount === 1 ? '' : 's'} in progress; resolve Turn ${snapshot.turn} to advance.`;
+    } else {
+      this.commitPlanButton.textContent = `Resolve Turn ${snapshot.turn}`;
+      this.turnActionLabel.textContent = 'No builds queued; only water, weather, and economy will resolve.';
+    }
     this.renderPendingBuilds(
       snapshot.pendingBuilds,
       snapshot.pendingBuildCost,
@@ -363,6 +419,9 @@ export class UIShell {
 
   public setMessage(message: string): void {
     this.messageLabel.textContent = message;
+    this.messageLabel.classList.remove('is-updated');
+    void this.messageLabel.offsetWidth;
+    this.messageLabel.classList.add('is-updated');
   }
 
   public showBuildMenu(
