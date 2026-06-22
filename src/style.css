@@ -923,23 +923,43 @@ h1 {
   .hud {
     top: 10px;
     left: 10px;
-    width: calc(100vw - 20px);
-    max-height: 58vh;
+    width: min(300px, calc(50vw - 15px));
+    max-height: calc(100vh - 20px);
     padding: 14px;
   }
 
   .task-panel {
+    top: 10px;
     right: 10px;
-    bottom: 10px;
-    top: auto;
-    width: min(360px, calc(100vw - 20px));
-    max-height: 34vh;
+    bottom: auto;
+    width: min(300px, calc(50vw - 15px));
+    max-height: calc(100vh - 20px);
   }
 
   .construction-palette {
-    bottom: calc(34vh + 20px);
+    bottom: 10px;
     max-width: calc(100vw - 20px);
     overflow-x: auto;
+  }
+}
+
+@media (max-width: 700px) {
+  .hud {
+    right: 10px;
+    width: auto;
+    max-height: 28vh;
+  }
+
+  .task-panel {
+    top: auto;
+    bottom: 10px;
+    left: 10px;
+    width: auto;
+    max-height: 22vh;
+  }
+
+  .construction-palette {
+    bottom: calc(22vh + 18px);
   }
 }
 
@@ -958,7 +978,7 @@ h1 {
   }
 
   .hud {
-    max-height: 56vh;
+    max-height: 28vh;
   }
 
   .metrics,
@@ -970,6 +990,7 @@ h1 {
     left: 10px;
     right: 10px;
     width: auto;
+    max-height: 22vh;
   }
 
   .palette-title {
