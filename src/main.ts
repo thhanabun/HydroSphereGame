@@ -832,7 +832,7 @@ const hydroRenderer = new HydroRenderer(uiShell.viewport, {
   },
 });
 
-const updateHud = (stats: ShallowWaterSystemStats = latestStats): void => {
+const updateHudUnsafe = (stats: ShallowWaterSystemStats): void => {
   const snapshot = gameActor.getSnapshot();
   const turnResolutionHud = getTurnResolutionHud(
     snapshot.value,
@@ -880,6 +880,15 @@ const updateHud = (stats: ShallowWaterSystemStats = latestStats): void => {
     canUseStormPulse: currentLevel.id === SANDBOX_LEVEL.id,
     canUseAddTileMode: currentLevel.allowGridExpansion,
   });
+};
+
+const updateHud = (stats: ShallowWaterSystemStats = latestStats): void => {
+  try {
+    updateHudUnsafe(stats);
+  } catch (error) {
+    console.error('HydroStrategist HUD update failed.', error);
+    uiShell.setMessage('HUD recovered from an update error; gameplay is still running.');
+  }
 };
 
 function resetPlayerResources(level: LevelDefinition): void {
@@ -965,7 +974,6 @@ function loadLevel(level: LevelDefinition): void {
   }
   uiShell.addEvent(`Turn ${gameActor.getSnapshot().context.turn} planning opened.`);
   hydroRenderer.setCells(renderCells);
-  hydroRenderer.update();
   updateHud();
 }
 
@@ -1422,6 +1430,6 @@ function resetBasin(): void {
 gameActor.start();
 uiShell.setLevel(SANDBOX_LEVEL);
 uiShell.addEvent(`Turn ${gameActor.getSnapshot().context.turn} planning opened.`);
-updateHud();
 hydroRenderer.start();
+updateHud();
 window.setInterval(simulateTick, 33);

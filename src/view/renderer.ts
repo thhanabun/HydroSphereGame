@@ -220,7 +220,6 @@ export class HydroRenderer {
     this.cells = cells;
     this.terrainMesh.count = cells.length;
     this.removeStaleStructureVisuals(cells);
-    this.update();
   }
 
   public setWeather(weather: WeatherState): void {
@@ -335,8 +334,13 @@ export class HydroRenderer {
   public start(): void {
     const render = (): void => {
       this.animationFrameId = window.requestAnimationFrame(render);
-      this.update();
-      this.renderer.render(this.scene, this.camera);
+
+      try {
+        this.update();
+        this.renderer.render(this.scene, this.camera);
+      } catch (error) {
+        console.error('HydroStrategist render frame failed.', error);
+      }
     };
 
     render();
