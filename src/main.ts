@@ -42,7 +42,13 @@ import {
 } from './core/levels';
 import type { Season, SimulationConstants, WeatherState } from './core/types';
 import './style.css';
-import { HydroRenderer, type BasinRenderCell } from './view/renderer';
+import {
+  CanvasHydroRenderer,
+  HydroRenderer,
+  type BasinRenderCell,
+  type HydroRendererOptions,
+  type HydroRendererPort,
+} from './view/renderer';
 import {
   UIShell,
   type BuildMenuSnapshot,
@@ -704,6 +710,7 @@ const initializeBasin = (seed: readonly BasinCellSeed[]): MutableHexGridTopology
 };
 
 let topology = initializeBasin(SANDBOX_LEVEL.seed);
+let hydroRenderer: HydroRendererPort;
 const uiShell = new UIShell({
   onSandboxSelected: () => loadLevel(SANDBOX_LEVEL),
   onLevelSelected: (levelId) => {
@@ -765,72 +772,112 @@ const uiShell = new UIShell({
     uiShell.showMainMenu();
   },
 });
-const hydroRenderer = new HydroRenderer(uiShell.viewport, {
-  cells: renderCells,
-  tileRadiusMeters: 1,
-  maxCells: MAX_RENDER_CELLS,
-  onCellDropped: (cell) => {
-    if (!draggedBuildType) {
-      return;
-    }
+const createHydroRenderer = (): HydroRendererPort => {
+  const rendererOptions: HydroRendererOptions = {
+    cells: renderCells,
+    tileRadiusMeters: 1,
+    maxCells: MAX_RENDER_CELLS,
+    onCellDropped: (cell) => {
+      if (!draggedBuildType) {
+        return;
+      }
 
-    if (gameActor.getSnapshot().value !== 'planningPhase') {
-      uiShell.setMessage('Construction drops are only available during Planning.');
+      if (gameActor.getSnapshot().value !== 'planningPhase') {
+        uiShell.setMessage('Construction drops are only available during Planning.');
+        draggedBuildType = undefined;
+        return;
+      }
+
+      selectedCell = cell;
+      const buildType = draggedBuildType;
+
       draggedBuildType = undefined;
-      return;
+      hydroRenderer.setBuildPreview();
+      queueBuild(buildType);
+    },
+    onCellDragged: (cell, direction) => {
+      if (gameActor.getSnapshot().value !== 'planningPhase') {
+        uiShell.setMessage('Tile drag is only available during Planning.');
+        return;
+      }
+
+      if (campaignOutcome !== 'playing' && currentLevel.id !== SANDBOX_LEVEL.id) {
+        uiShell.setMessage(getCampaignEndedMessage());
+        return;
+      }
+
+      selectedCell = cell;
+
+      if (!currentLevel.allowGridExpansion) {
+        uiShell.setMessage('This level does not allow grid expansion.');
+        return;
+      }
+
+      if (interactionMode !== 'addTile') {
+        uiShell.setMessage('Switch to Add Tile Mode, then drag from a hex to expand.');
+        return;
+      }
+
+      addTileAdjacentToSelectedCell(direction);
+    },
+    onCellSelected: (cell, pointer) => {
+      if (gameActor.getSnapshot().value !== 'planningPhase') {
+        uiShell.setMessage('Build orders are only available during Planning.');
+        return;
+      }
+
+      if (campaignOutcome !== 'playing' && currentLevel.id !== SANDBOX_LEVEL.id) {
+        uiShell.setMessage(getCampaignEndedMessage());
+        return;
+      }
+
+      selectedCell = cell;
+      if (interactionMode === 'addTile') {
+        uiShell.showAddTileMenu(cell, pointer);
+      } else {
+        uiShell.showBuildMenu(createBuildMenuSnapshot(cell), pointer);
+      }
+    },
+  };
+
+  const forceCanvasRenderer =
+    new URLSearchParams(window.location.search).get('renderer') === 'canvas';
+
+  if (!forceCanvasRenderer) {
+    try {
+      return new HydroRenderer(uiShell.viewport, rendererOptions);
+    } catch (error) {
+      console.error('HydroStrategist WebGL renderer failed; using Canvas fallback.', error);
+      uiShell.addEvent('WebGL unavailable in this browser; switched to the 2D map fallback.');
+      uiShell.setMessage('WebGL is disabled in this browser. Using the 2D playable map fallback.');
     }
+  } else {
+    uiShell.addEvent('Canvas renderer forced by URL for diagnostics.');
+  }
 
-    selectedCell = cell;
-    const buildType = draggedBuildType;
+  return new CanvasHydroRenderer(uiShell.viewport, rendererOptions);
+};
 
-    draggedBuildType = undefined;
-    hydroRenderer.setBuildPreview();
-    queueBuild(buildType);
-  },
-  onCellDragged: (cell, direction) => {
-    if (gameActor.getSnapshot().value !== 'planningPhase') {
-      uiShell.setMessage('Tile drag is only available during Planning.');
-      return;
-    }
+hydroRenderer = createHydroRenderer();
 
-    if (campaignOutcome !== 'playing' && currentLevel.id !== SANDBOX_LEVEL.id) {
-      uiShell.setMessage(getCampaignEndedMessage());
-      return;
-    }
+const runRendererAction = (
+  action: (renderer: HydroRendererPort) => void,
+  recoveryMessage: string,
+): void => {
+  try {
+    action(hydroRenderer);
+  } catch (error) {
+    console.error('HydroStrategist renderer action failed.', error);
+    uiShell.addEvent('Renderer recovered from a map update error.');
+    uiShell.setMessage(recoveryMessage);
+  }
+};
 
-    selectedCell = cell;
-
-    if (!currentLevel.allowGridExpansion) {
-      uiShell.setMessage('This level does not allow grid expansion.');
-      return;
-    }
-
-    if (interactionMode !== 'addTile') {
-      uiShell.setMessage('Switch to Add Tile Mode, then drag from a hex to expand.');
-      return;
-    }
-
-    addTileAdjacentToSelectedCell(direction);
-  },
-  onCellSelected: (cell, pointer) => {
-    if (gameActor.getSnapshot().value !== 'planningPhase') {
-      uiShell.setMessage('Build orders are only available during Planning.');
-      return;
-    }
-
-    if (campaignOutcome !== 'playing' && currentLevel.id !== SANDBOX_LEVEL.id) {
-      uiShell.setMessage(getCampaignEndedMessage());
-      return;
-    }
-
-    selectedCell = cell;
-    if (interactionMode === 'addTile') {
-      uiShell.showAddTileMenu(cell, pointer);
-    } else {
-      uiShell.showBuildMenu(createBuildMenuSnapshot(cell), pointer);
-    }
-  },
-});
+const syncRendererCells = (): void =>
+  runRendererAction(
+    (renderer) => renderer.setCells(renderCells),
+    'Map renderer skipped one update; stage data and HUD are still loaded.',
+  );
 
 const updateHudUnsafe = (stats: ShallowWaterSystemStats): void => {
   const snapshot = gameActor.getSnapshot();
@@ -973,8 +1020,8 @@ function loadLevel(level: LevelDefinition): void {
     uiShell.addEvent('Sandbox weather: dry and monsoon seasons roll with Markov transitions.');
   }
   uiShell.addEvent(`Turn ${gameActor.getSnapshot().context.turn} planning opened.`);
-  hydroRenderer.setCells(renderCells);
   updateHud();
+  syncRendererCells();
 }
 
 const resolveWeatherForCommittedTurn = (): void => {
@@ -1057,7 +1104,10 @@ const executeQueuedBuildCommands = (): void => {
   }
   uiShell.hideBuildMenu();
   uiShell.hideAddTileMenu();
-  hydroRenderer.update();
+  runRendererAction(
+    (renderer) => renderer.update(),
+    'Map renderer skipped one physics frame; simulation is still resolving.',
+  );
   updateHud();
 };
 
@@ -1212,7 +1262,7 @@ function addTileAdjacentToSelectedCell(direction: number): void {
 
   PlayerResourceComponent.credits[playerResourceEid] -= GRID_EXPANSION_COST;
   topology = rebuildTopology();
-  hydroRenderer.setCells(renderCells);
+  syncRendererCells();
   selectedCell = createdCell;
   uiShell.hideAddTileMenu();
   uiShell.setMessage(`Added grid tile q${q}, r${r}.`);
@@ -1411,7 +1461,10 @@ const simulateTick = (): void => {
     constants: SIMULATION_CONSTANTS,
   });
 
-  hydroRenderer.update();
+  runRendererAction(
+    (renderer) => renderer.update(),
+    'Map renderer skipped one physics frame; simulation is still resolving.',
+  );
   gameActor.send({ type: 'SIMULATION_TICKED' });
 
   if (gameActor.getSnapshot().value === 'evaluationPhase') {
@@ -1430,6 +1483,9 @@ function resetBasin(): void {
 gameActor.start();
 uiShell.setLevel(SANDBOX_LEVEL);
 uiShell.addEvent(`Turn ${gameActor.getSnapshot().context.turn} planning opened.`);
-hydroRenderer.start();
+runRendererAction(
+  (renderer) => renderer.start(),
+  'Map renderer could not start animation; stage data and controls are still active.',
+);
 updateHud();
 window.setInterval(simulateTick, 33);

@@ -6,6 +6,9 @@ const server = await createServer({
     host: '127.0.0.1',
     port: 5173,
     strictPort: true,
+    headers: {
+      'Cache-Control': 'no-store',
+    },
   },
 });
 

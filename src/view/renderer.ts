@@ -58,6 +58,15 @@ export interface HydroRendererOptions {
   ) => void;
 }
 
+export interface HydroRendererPort {
+  setCells(cells: readonly BasinRenderCell[]): void;
+  setWeather(weather: WeatherState): void;
+  setBuildPreview(structureType?: number): void;
+  update(): void;
+  start(): void;
+  dispose(): void;
+}
+
 const LAND_LOW = new Color('#4f6e3f');
 const LAND_HIGH = new Color('#8b7a4a');
 const SHORE_LOW = new Color('#a08a56');
@@ -97,7 +106,7 @@ interface BuildPreview {
   cellEid?: number;
 }
 
-export class HydroRenderer {
+export class HydroRenderer implements HydroRendererPort {
   private readonly renderer: WebGLRenderer;
   private readonly scene: Scene;
   private readonly camera: PerspectiveCamera;
@@ -147,7 +156,7 @@ export class HydroRenderer {
     this.camera.position.set(0, 11, 14);
     this.camera.lookAt(0, 0, 0);
 
-    this.renderer = new WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    this.renderer = new WebGLRenderer({ antialias: true, powerPreference: 'default' });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     container.appendChild(this.renderer.domElement);
 
@@ -824,5 +833,492 @@ export class HydroRenderer {
       this.buildPreview.group.visible = false;
       this.buildPreview.cellEid = undefined;
     }
+  }
+}
+
+interface CanvasCellProjection {
+  readonly cell: BasinRenderCell;
+  readonly x: number;
+  readonly y: number;
+}
+
+const CANVAS_HEX_DIRECTIONS = [
+  [1, 0],
+  [1, -1],
+  [0, -1],
+  [-1, 0],
+  [-1, 1],
+  [0, 1],
+] as const;
+
+export class CanvasHydroRenderer implements HydroRendererPort {
+  private readonly canvas: HTMLCanvasElement;
+  private readonly context: CanvasRenderingContext2D;
+  private cells: readonly BasinRenderCell[];
+  private currentWeather: WeatherState = 'sunny';
+  private buildPreviewType?: number;
+  private previewCell?: BasinRenderCell;
+  private animationFrameId = 0;
+  private readonly onCellSelected?: HydroRendererOptions['onCellSelected'];
+  private readonly onCellDragged?: HydroRendererOptions['onCellDragged'];
+  private readonly onCellDropped?: HydroRendererOptions['onCellDropped'];
+  private dragStart:
+    | {
+        readonly cell: BasinRenderCell;
+        readonly x: number;
+        readonly y: number;
+      }
+    | undefined;
+
+  public constructor(container: HTMLElement, options: HydroRendererOptions) {
+    this.cells = options.cells;
+    this.onCellSelected = options.onCellSelected;
+    this.onCellDragged = options.onCellDragged;
+    this.onCellDropped = options.onCellDropped;
+    this.canvas = document.createElement('canvas');
+    this.canvas.className = 'fallback-map';
+    this.canvas.style.width = '100%';
+    this.canvas.style.height = '100%';
+    this.canvas.style.display = 'block';
+    this.canvas.tabIndex = 0;
+
+    const context = this.canvas.getContext('2d');
+
+    if (!context) {
+      throw new Error('Canvas 2D context could not be created.');
+    }
+
+    this.context = context;
+    container.appendChild(this.canvas);
+    this.canvas.addEventListener('pointerdown', (event) => this.handlePointerDown(event));
+    this.canvas.addEventListener('pointerup', (event) => this.handlePointerUp(event));
+    this.canvas.addEventListener('dragover', (event) => this.handleDragOver(event));
+    this.canvas.addEventListener('dragleave', () => {
+      this.previewCell = undefined;
+      this.update();
+    });
+    this.canvas.addEventListener('drop', (event) => this.handleDrop(event));
+    this.update();
+  }
+
+  public setCells(cells: readonly BasinRenderCell[]): void {
+    this.cells = cells;
+    this.update();
+  }
+
+  public setWeather(weather: WeatherState): void {
+    this.currentWeather = weather;
+  }
+
+  public setBuildPreview(structureType?: number): void {
+    this.buildPreviewType = structureType;
+    this.previewCell = undefined;
+    this.update();
+  }
+
+  public update(): void {
+    const width = Math.max(1, this.canvas.clientWidth);
+    const height = Math.max(1, this.canvas.clientHeight);
+    const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+
+    if (
+      this.canvas.width !== Math.floor(width * pixelRatio) ||
+      this.canvas.height !== Math.floor(height * pixelRatio)
+    ) {
+      this.canvas.width = Math.floor(width * pixelRatio);
+      this.canvas.height = Math.floor(height * pixelRatio);
+    }
+
+    this.context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+    this.draw(width, height);
+  }
+
+  public start(): void {
+    const render = (): void => {
+      this.animationFrameId = window.requestAnimationFrame(render);
+      this.update();
+    };
+
+    render();
+  }
+
+  public dispose(): void {
+    window.cancelAnimationFrame(this.animationFrameId);
+    this.canvas.remove();
+  }
+
+  private draw(width: number, height: number): void {
+    const context = this.context;
+
+    context.clearRect(0, 0, width, height);
+    context.fillStyle = SKY_BY_WEATHER[this.currentWeather];
+    context.fillRect(0, 0, width, height);
+
+    const projections = this.projectCells(width, height);
+
+    for (const projection of projections) {
+      this.drawHex(projection);
+    }
+
+    for (const projection of projections) {
+      this.drawStructure(projection);
+    }
+
+    if (this.previewCell && this.buildPreviewType !== undefined) {
+      const projection = projections.find(
+        (candidate) => candidate.cell.eid === this.previewCell?.eid,
+      );
+
+      if (projection) {
+        this.drawStructure(projection, this.buildPreviewType, 0.38);
+      }
+    }
+
+    this.drawWeatherOverlay(width, height);
+    this.drawFallbackBadge(width);
+  }
+
+  private projectCells(width: number, height: number): CanvasCellProjection[] {
+    if (this.cells.length === 0) {
+      return [];
+    }
+
+    const raw = this.cells.map((cell) => ({
+      cell,
+      x: Math.sqrt(3) * (cell.q + cell.r / 2),
+      y: 1.5 * cell.r,
+    }));
+    const minX = Math.min(...raw.map((item) => item.x));
+    const maxX = Math.max(...raw.map((item) => item.x));
+    const minY = Math.min(...raw.map((item) => item.y));
+    const maxY = Math.max(...raw.map((item) => item.y));
+    const mapWidth = Math.max(1, maxX - minX + 2.4);
+    const mapHeight = Math.max(1, maxY - minY + 2.4);
+    const radius = Math.max(18, Math.min(width / mapWidth, height / mapHeight) * 0.46);
+    const offsetX = width * 0.5 - ((minX + maxX) * 0.5) * radius;
+    const offsetY = height * 0.5 - ((minY + maxY) * 0.5) * radius;
+
+    return raw.map((item) => ({
+      cell: item.cell,
+      x: item.x * radius + offsetX,
+      y: item.y * radius + offsetY,
+    }));
+  }
+
+  private drawHex(projection: CanvasCellProjection): void {
+    const context = this.context;
+    const radius = this.getDrawRadius();
+    const { cell, x, y } = projection;
+    const surfaceType = Number(Terrain.surfaceType[cell.eid]);
+    const waterDepth = Math.max(0, Water.depth[cell.eid]);
+    const elevation = Terrain.elevation[cell.eid];
+
+    context.save();
+    this.traceHex(x, y + 7, radius);
+    context.fillStyle = '#061923';
+    context.globalAlpha = 0.42;
+    context.fill();
+    context.globalAlpha = 1;
+    this.traceHex(x, y, radius);
+    context.fillStyle = this.getSurfaceColor(surfaceType, waterDepth, elevation);
+    context.fill();
+    context.strokeStyle = surfaceType === SurfaceKind.water ? '#7adfff' : '#243a2d';
+    context.lineWidth = 1.2;
+    context.globalAlpha = 0.75;
+    context.stroke();
+
+    if (WaterSource.active[cell.eid] === 1) {
+      context.globalAlpha = 0.45;
+      this.traceHex(x, y, radius * 0.72);
+      context.fillStyle = '#a7e9ff';
+      context.fill();
+    }
+
+    if (surfaceType === SurfaceKind.water) {
+      context.globalAlpha = 0.34;
+      this.traceHex(x, y, radius * Math.max(0.34, Math.min(0.82, waterDepth + 0.32)));
+      context.fillStyle = '#d3f8ff';
+      context.fill();
+    }
+
+    context.restore();
+  }
+
+  private drawStructure(
+    projection: CanvasCellProjection,
+    overrideType?: number,
+    alpha = 1,
+  ): void {
+    const context = this.context;
+    const structureType =
+      overrideType ??
+      (Structure.type[projection.cell.eid] !== StructureCode.none
+        ? Number(Structure.type[projection.cell.eid])
+        : Number(Structure.pendingType[projection.cell.eid]));
+
+    if (structureType === StructureCode.none) {
+      return;
+    }
+
+    const radius = this.getDrawRadius();
+    const x = projection.x;
+    const y = projection.y;
+    const underConstruction =
+      overrideType === undefined &&
+      Structure.constructionTurnsRemaining[projection.cell.eid] > 0;
+
+    context.save();
+    context.globalAlpha = alpha;
+    context.translate(x, y);
+    context.shadowColor = 'rgba(0, 0, 0, 0.35)';
+    context.shadowBlur = 8;
+    context.shadowOffsetY = 4;
+
+    if (structureType === StructureKind.baseDam || structureType === StructureKind.elevationDam) {
+      context.fillStyle = underConstruction ? '#f2d16b' : '#d3ad67';
+      context.fillRect(-radius * 0.62, -radius * 0.16, radius * 1.24, radius * 0.32);
+      context.fillStyle = structureType === StructureKind.elevationDam ? '#d8e1e8' : '#b88f4a';
+      context.fillRect(-radius * 0.5, -radius * 0.28, radius, radius * 0.16);
+    } else if (structureType === StructureKind.conduit) {
+      context.strokeStyle = underConstruction ? '#f2d16b' : '#f0a14d';
+      context.lineWidth = Math.max(6, radius * 0.22);
+      context.beginPath();
+      context.moveTo(-radius * 0.55, 0);
+      context.lineTo(radius * 0.55, 0);
+      context.stroke();
+      context.lineWidth = Math.max(2, radius * 0.07);
+      context.strokeStyle = '#5d6870';
+      context.stroke();
+    } else if (structureType === StructureKind.powerhouse) {
+      context.fillStyle = underConstruction ? '#f2d16b' : '#f3efd8';
+      context.fillRect(-radius * 0.32, -radius * 0.18, radius * 0.64, radius * 0.42);
+      context.fillStyle = '#546b75';
+      context.beginPath();
+      context.moveTo(-radius * 0.42, -radius * 0.18);
+      context.lineTo(0, -radius * 0.52);
+      context.lineTo(radius * 0.42, -radius * 0.18);
+      context.closePath();
+      context.fill();
+      context.fillStyle = '#2e8da6';
+      context.beginPath();
+      context.arc(radius * 0.36, radius * 0.06, radius * 0.12, 0, Math.PI * 2);
+      context.fill();
+    }
+
+    context.restore();
+  }
+
+  private drawWeatherOverlay(width: number, height: number): void {
+    if (this.currentWeather !== 'lightRain' && this.currentWeather !== 'heavyRain' && this.currentWeather !== 'storm') {
+      return;
+    }
+
+    const context = this.context;
+    const count = this.currentWeather === 'storm' ? 80 : this.currentWeather === 'heavyRain' ? 54 : 24;
+    const elapsed = performance.now() / 1000;
+
+    context.save();
+    context.strokeStyle = this.currentWeather === 'storm' ? '#b8eaff' : '#8ccde8';
+    context.globalAlpha = this.currentWeather === 'storm' ? 0.5 : 0.36;
+    context.lineWidth = this.currentWeather === 'lightRain' ? 1 : 1.5;
+
+    for (let index = 0; index < count; index += 1) {
+      const x = ((index * 53 + elapsed * 120) % (width + 80)) - 40;
+      const y = ((index * 71 + elapsed * 220) % (height + 80)) - 40;
+
+      context.beginPath();
+      context.moveTo(x, y);
+      context.lineTo(x - 10, y + 28);
+      context.stroke();
+    }
+
+    context.restore();
+  }
+
+  private drawFallbackBadge(width: number): void {
+    const context = this.context;
+
+    context.save();
+    context.fillStyle = 'rgba(10, 24, 31, 0.72)';
+    context.strokeStyle = 'rgba(122, 223, 255, 0.35)';
+    context.lineWidth = 1;
+    context.beginPath();
+    context.roundRect(Math.max(16, width * 0.5 - 142), 16, 284, 34, 8);
+    context.fill();
+    context.stroke();
+    context.fillStyle = '#9df4df';
+    context.font = '600 13px system-ui, sans-serif';
+    context.textAlign = 'center';
+    context.textBaseline = 'middle';
+    context.fillText('2D map fallback: WebGL is disabled in this browser', width * 0.5, 33);
+    context.restore();
+  }
+
+  private getDrawRadius(): number {
+    const width = Math.max(1, this.canvas.clientWidth);
+    const height = Math.max(1, this.canvas.clientHeight);
+    const projections = this.projectCells(width, height);
+
+    if (projections.length <= 1) {
+      return Math.max(24, Math.min(width, height) * 0.08);
+    }
+
+    let nearest = Number.POSITIVE_INFINITY;
+
+    for (let left = 0; left < projections.length; left += 1) {
+      for (let right = left + 1; right < projections.length; right += 1) {
+        const distance = Math.hypot(
+          projections[left].x - projections[right].x,
+          projections[left].y - projections[right].y,
+        );
+
+        if (distance > 1) {
+          nearest = Math.min(nearest, distance);
+        }
+      }
+    }
+
+    return Number.isFinite(nearest)
+      ? Math.max(18, Math.min(64, nearest / Math.sqrt(3) * 0.96))
+      : Math.max(24, Math.min(width, height) * 0.08);
+  }
+
+  private traceHex(x: number, y: number, radius: number): void {
+    const context = this.context;
+
+    context.beginPath();
+    for (let side = 0; side < 6; side += 1) {
+      const angle = Math.PI / 6 + side * (Math.PI / 3);
+      const pointX = x + Math.cos(angle) * radius;
+      const pointY = y + Math.sin(angle) * radius;
+
+      if (side === 0) {
+        context.moveTo(pointX, pointY);
+      } else {
+        context.lineTo(pointX, pointY);
+      }
+    }
+    context.closePath();
+  }
+
+  private getSurfaceColor(surfaceType: number, waterDepth: number, elevation: number): string {
+    if (surfaceType === SurfaceKind.water) {
+      const depthT = Math.max(0, Math.min(1, waterDepth / 0.7));
+      const light = Math.round(68 - depthT * 30);
+
+      return `hsl(205 82% ${light}%)`;
+    }
+
+    if (surfaceType === SurfaceKind.shore) {
+      const light = Math.round(56 + Math.max(0, Math.min(1, elevation)) * 10);
+
+      return `hsl(47 38% ${light}%)`;
+    }
+
+    const light = Math.round(38 + Math.max(0, Math.min(1, elevation)) * 10);
+
+    return `hsl(91 27% ${light}%)`;
+  }
+
+  private getCellAtPointer(event: PointerEvent | MouseEvent): BasinRenderCell | undefined {
+    const bounds = this.canvas.getBoundingClientRect();
+    const x = event.clientX - bounds.left;
+    const y = event.clientY - bounds.top;
+    const radius = this.getDrawRadius();
+    const projections = this.projectCells(bounds.width, bounds.height);
+
+    return projections
+      .map((projection) => ({
+        cell: projection.cell,
+        distance: Math.hypot(projection.x - x, projection.y - y),
+      }))
+      .filter((candidate) => candidate.distance <= radius)
+      .sort((left, right) => left.distance - right.distance)[0]?.cell;
+  }
+
+  private handlePointerDown(event: PointerEvent): void {
+    const cell = this.getCellAtPointer(event);
+
+    if (!cell) {
+      return;
+    }
+
+    this.dragStart = {
+      cell,
+      x: event.clientX,
+      y: event.clientY,
+    };
+    this.canvas.setPointerCapture(event.pointerId);
+  }
+
+  private handlePointerUp(event: PointerEvent): void {
+    if (!this.dragStart) {
+      return;
+    }
+
+    const start = this.dragStart;
+    this.dragStart = undefined;
+    const deltaX = event.clientX - start.x;
+    const deltaY = event.clientY - start.y;
+    const dragDistance = Math.hypot(deltaX, deltaY);
+
+    if (dragDistance > 34 && this.onCellDragged) {
+      this.onCellDragged(start.cell, this.getDragDirection(deltaX, deltaY), {
+        x: event.clientX,
+        y: event.clientY,
+      });
+      return;
+    }
+
+    this.onCellSelected?.(start.cell, {
+      x: event.clientX,
+      y: event.clientY,
+    });
+  }
+
+  private getDragDirection(deltaX: number, deltaY: number): number {
+    const angle = (Math.atan2(deltaY, deltaX) + Math.PI * 2) % (Math.PI * 2);
+    const vectors = CANVAS_HEX_DIRECTIONS.map(([dq, dr]) => ({
+      x: Math.sqrt(3) * (dq + dr / 2),
+      y: 1.5 * dr,
+    }));
+    let bestDirection = 0;
+    let bestScore = Number.POSITIVE_INFINITY;
+
+    for (let index = 0; index < vectors.length; index += 1) {
+      const vectorAngle = (Math.atan2(vectors[index].y, vectors[index].x) + Math.PI * 2) % (Math.PI * 2);
+      const score = Math.abs(Math.atan2(Math.sin(angle - vectorAngle), Math.cos(angle - vectorAngle)));
+
+      if (score < bestScore) {
+        bestDirection = index;
+        bestScore = score;
+      }
+    }
+
+    return bestDirection;
+  }
+
+  private handleDragOver(event: DragEvent): void {
+    event.preventDefault();
+    this.previewCell = this.getCellAtPointer(event);
+  }
+
+  private handleDrop(event: DragEvent): void {
+    if (!this.onCellDropped) {
+      return;
+    }
+
+    event.preventDefault();
+    const cell = this.getCellAtPointer(event);
+
+    if (!cell) {
+      return;
+    }
+
+    this.previewCell = undefined;
+    this.onCellDropped(cell, {
+      x: event.clientX,
+      y: event.clientY,
+    });
   }
 }
