@@ -31,8 +31,10 @@ Status: complete.
 - `renderer.ts` uses Three.js raycasting and Honeycomb hex coordinates for tile interaction.
 - `uishell.ts` owns the HTML/CSS overlay and HUD wiring.
 - `main.ts` coordinates XState planning, command execution, simulation, and evaluation phases.
+- The map supports hover tooltips, valid/invalid placement tinting, drag-and-drop construction, zoom, pan, fit, and Canvas fallback rendering when WebGL is unavailable.
+- The top planning panel keeps commit controls, phase status, queue count, player messages, and collapsible turn details close to the map.
 
-Status: in progress.
+Status: complete for the playable prototype; deeper polish and onboarding remain iterative.
 
 ## Validation
 
@@ -42,4 +44,10 @@ Run:
 npm run validate
 ```
 
-Expected result: TypeScript typecheck and Vite production build both pass.
+Expected result: TypeScript typecheck, campaign balance audit, and Vite production build all pass.
+
+## Deployment
+
+- Pushes to `main` run validation and deploy the current production build to GitHub Pages.
+- A failed validation or build does not replace the last successful Pages deployment.
+- Live site: <https://thhanabun.github.io/HydroSphereGame/>

@@ -17,21 +17,38 @@ HydroStrategist is a browser-based water resource management strategy game. Plan
 1. Select Sandbox or a campaign level.
 2. During the Planning Phase, drag a construction model from the bottom toolbar onto a valid hex.
 3. Queue any additional construction that your credits, engineers, and machinery allow.
-4. Select **Commit Plan** to resolve construction, weather, water flow, income, and objectives.
+4. Read the compact turn panel above the map, then select **Commit Turn** to resolve construction, weather, water flow, income, and objectives.
 5. Meet every campaign objective before the turn limit expires.
 
-Only **Commit Plan** advances and resolves a turn. Campaign weather is fixed per turn, while Sandbox weather follows seasonal patterns.
+Only **Commit Turn** advances and resolves a turn. Campaign weather is fixed per turn, while Sandbox weather follows seasonal patterns.
+
+## Map And Planning UX
+
+- Hover a hex to inspect terrain type, water depth, elevation, structure state, and placement feedback.
+- Drag a construction model to preview placement. Valid tiles tint green; blocked tiles and silhouettes tint red.
+- Use the mouse wheel or the `+` and `-` map buttons to zoom.
+- Use middle mouse drag or right mouse drag to pan larger Sandbox maps.
+- Use **Fit** to recenter the basin after panning or zooming.
+- Open **Turn detail** in the top planning panel when you need the full queued-build and under-construction breakdown.
 
 ## Construction
 
-| Structure | Purpose |
-| --- | --- |
-| Base Dam | Creates a reservoir and retains water until its spillway threshold is reached. |
-| Elevation Dam | Raises an existing dam to increase storage and retention. |
-| Conduit | Diverts water toward irrigation zones or downstream infrastructure. |
-| Powerhouse | Converts available water flow into hydropower and income. |
+| Structure | Cost | Build Time | Placement | Purpose |
+| --- | ---: | ---: | --- | --- |
+| Base Dam | 220 cr | 2 turns | Water or Shore | Creates a reservoir and retains water until its spillway threshold is reached. |
+| Elevation Dam | 160 cr | 1 turn | Existing dam | Raises an existing dam to increase storage and retention. |
+| Conduit | 140 cr | 1 turn | Land or Shore | Diverts water toward irrigation zones or downstream infrastructure. |
+| Powerhouse | 260 cr | 3 turns | Land or Shore | Converts available water flow into hydropower and income. |
 
-Construction takes multiple turns and locks excavators or mixers on the construction wheel until the job is complete. The in-game hint panel shows placement rules, costs, build time, and resource effects.
+Construction takes multiple turns and locks excavators or mixers on the construction wheel until the job is complete. The bottom Build palette shows side-view construction models, costs, and build times.
+
+## Rendering Fallback
+
+The primary map uses Three.js/WebGL. If a browser cannot create a WebGL context, HydroStrategist automatically switches to a playable Canvas 2D fallback. You can force the fallback for testing with:
+
+```text
+https://thhanabun.github.io/HydroSphereGame/?renderer=canvas
+```
 
 ## Technology
 
@@ -99,4 +116,4 @@ scripts/
 
 ## Status
 
-HydroStrategist is a playable prototype. Campaign balance, simulation behavior, construction feedback, visual clarity, and deployment automation remain active areas of development.
+HydroStrategist is a playable prototype with seven audited campaign levels, Sandbox expansion, construction delays, map zoom/pan/fit, placement validation, WebGL fallback rendering, and automated GitHub Pages deployment. Campaign balance, simulation depth, visual clarity, and onboarding remain active areas of development.
