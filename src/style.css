@@ -174,6 +174,48 @@ button.is-active {
   scrollbar-color: rgba(126, 226, 199, 0.52) rgba(255, 255, 255, 0.08);
 }
 
+.commit-detail {
+  position: absolute;
+  top: 18px;
+  left: calc(min(360px, calc(100vw - 36px)) + 42px);
+  right: calc(min(340px, calc(100vw - 36px)) + 42px);
+  z-index: 10;
+  min-width: 0;
+  max-height: min(220px, calc(100vh - 160px));
+  padding: 10px 12px;
+  border: 1px solid rgba(126, 226, 199, 0.2);
+  border-radius: 8px;
+  background: rgba(7, 16, 23, 0.6);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 16px 46px rgba(0, 0, 0, 0.22);
+  overflow: auto;
+  scrollbar-color: rgba(126, 226, 199, 0.52) rgba(255, 255, 255, 0.08);
+}
+
+.commit-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
+}
+
+.commit-status {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 0.8fr) minmax(0, 0.8fr);
+  gap: 10px;
+  align-items: center;
+}
+
+#commitPlanButton {
+  min-width: 132px;
+  padding: 0.58rem 0.85rem;
+  background: rgba(42, 143, 121, 0.92);
+}
+
+#commitPlanButton:hover {
+  background: rgba(62, 174, 145, 0.98);
+}
+
 .turn-runner {
   position: absolute;
   left: 50%;
@@ -191,6 +233,70 @@ button.is-active {
 
 .turn-runner[hidden] {
   display: none;
+}
+
+.map-controls {
+  position: absolute;
+  right: calc(min(340px, calc(100vw - 36px)) + 42px);
+  bottom: 22px;
+  z-index: 12;
+  display: flex;
+  gap: 6px;
+  padding: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  background: rgba(7, 16, 23, 0.68);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.26);
+}
+
+.map-controls button {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
+  padding: 0;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  line-height: 1;
+}
+
+.map-controls #zoomFitButton {
+  width: 44px;
+  min-width: 44px;
+  font-size: 0.72rem;
+}
+
+.tile-tooltip {
+  position: fixed;
+  z-index: 16;
+  display: grid;
+  max-width: min(300px, calc(100vw - 32px));
+  gap: 4px;
+  padding: 8px 10px;
+  border: 1px solid rgba(126, 226, 199, 0.28);
+  border-radius: 6px;
+  background: rgba(7, 16, 23, 0.86);
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(12px);
+  pointer-events: none;
+}
+
+.tile-tooltip[hidden] {
+  display: none;
+}
+
+.tile-tooltip strong {
+  color: #7ee2c7;
+  font-size: 0.78rem;
+  line-height: 1.25;
+}
+
+.tile-tooltip span {
+  color: rgba(247, 251, 255, 0.78);
+  font-size: 0.74rem;
+  line-height: 1.32;
 }
 
 .runner-header {
@@ -468,14 +574,15 @@ h1 {
 
 .palette-buttons button {
   display: grid;
-  grid-template-rows: 38px auto;
+  grid-template-rows: 42px auto auto;
   place-items: center;
-  width: 84px;
-  min-height: 68px;
-  padding: 5px 6px 6px;
+  width: 92px;
+  min-height: 84px;
+  padding: 6px;
   color: rgba(247, 251, 255, 0.86);
   background: rgba(255, 255, 255, 0.07);
   font-size: 0.7rem;
+  line-height: 1.18;
   text-align: center;
 }
 
@@ -488,12 +595,22 @@ h1 {
   cursor: grabbing;
 }
 
+.palette-buttons small {
+  margin-top: 2px;
+  color: rgba(126, 226, 199, 0.74);
+  font-size: 0.58rem;
+  font-weight: 800;
+  line-height: 1.15;
+  white-space: nowrap;
+}
+
 .model-icon {
   position: relative;
   display: block;
-  width: 58px;
-  height: 34px;
+  width: 64px;
+  height: 40px;
   pointer-events: none;
+  transform: translateY(1px);
 }
 
 .model-icon::before,
@@ -506,80 +623,113 @@ h1 {
 
 .model-base-dam::before,
 .model-elevation::before {
-  left: 5px;
-  bottom: 7px;
-  width: 48px;
-  height: 15px;
-  border-top: 4px solid #e1c579;
-  background: #a98b45;
-  box-shadow: 0 5px 0 #5c4e2c;
-  transform: skewY(-8deg);
+  left: 7px;
+  bottom: 10px;
+  width: 46px;
+  height: 17px;
+  background: linear-gradient(145deg, #d5b45f 0%, #a7843d 58%, #71582b 100%);
+  box-shadow:
+    0 5px 0 #463719,
+    inset 0 4px 0 rgba(255, 233, 148, 0.36);
+  clip-path: polygon(9% 22%, 100% 0, 91% 78%, 0 100%);
 }
 
 .model-base-dam::after,
 .model-elevation::after {
-  left: 10px;
+  left: 12px;
+  bottom: 5px;
+  width: 32px;
+  height: 19px;
+  border-left: 5px solid rgba(78, 58, 28, 0.6);
+  border-right: 5px solid rgba(78, 58, 28, 0.6);
+  background:
+    linear-gradient(90deg, transparent 0 34%, rgba(255, 235, 159, 0.72) 34% 50%, transparent 50% 100%);
+  transform: skewY(-12deg);
+}
+
+.model-base-dam i,
+.model-elevation i {
+  left: 5px;
   bottom: 4px;
-  width: 7px;
-  height: 24px;
-  border-right: 30px dotted rgba(238, 220, 167, 0.82);
+  width: 52px;
+  height: 7px;
+  background: rgba(24, 55, 72, 0.74);
+  border-radius: 50%;
 }
 
 .model-elevation::before {
-  bottom: 4px;
-  height: 23px;
-  border-top-color: #eef3f5;
-  background: #aebcc2;
-  box-shadow: 0 5px 0 #59666c;
+  bottom: 7px;
+  height: 24px;
+  background: linear-gradient(145deg, #eff4f5 0%, #aebcc2 58%, #59666c 100%);
+  box-shadow:
+    0 5px 0 #3d474d,
+    inset 0 5px 0 rgba(255, 255, 255, 0.42);
 }
 
 .model-conduit::before {
-  left: 4px;
-  top: 12px;
-  width: 50px;
+  left: 6px;
+  top: 15px;
+  width: 52px;
   height: 12px;
-  border: 3px solid #f6b45d;
+  border: 4px solid #f4a84c;
   border-radius: 999px;
-  background: #9b5d28;
-  box-shadow: inset 0 0 0 3px #d88738;
+  background: linear-gradient(180deg, #f5c479 0%, #9b5d28 58%, #5a361a 100%);
+  box-shadow:
+    0 4px 0 rgba(0, 0, 0, 0.28),
+    inset 0 0 0 3px #d88738;
 }
 
 .model-conduit::after {
-  left: 13px;
-  top: 8px;
-  width: 4px;
-  height: 21px;
-  border-left: 4px solid #8e9aa0;
-  border-right: 4px solid #8e9aa0;
-  box-shadow: 25px 0 0 #8e9aa0;
+  left: 14px;
+  top: 9px;
+  width: 5px;
+  height: 26px;
+  background: #8e9aa0;
+  box-shadow:
+    29px 0 0 #8e9aa0,
+    0 4px 0 #58646b,
+    29px 4px 0 #58646b;
+}
+
+.model-conduit i {
+  left: 9px;
+  bottom: 5px;
+  width: 46px;
+  height: 5px;
+  background: rgba(24, 55, 72, 0.62);
+  border-radius: 50%;
 }
 
 .model-powerhouse::before {
-  left: 14px;
-  bottom: 3px;
+  left: 16px;
+  bottom: 7px;
   width: 32px;
-  height: 23px;
-  background: #e7e4cd;
-  box-shadow: 5px 5px 0 #7f8176;
+  height: 24px;
+  background: linear-gradient(145deg, #f3efd8 0%, #c5c0a8 70%);
+  box-shadow:
+    6px 5px 0 #6e746a,
+    inset -5px 0 0 rgba(120, 124, 110, 0.18);
 }
 
 .model-powerhouse::after {
-  left: 10px;
-  top: 0;
-  width: 40px;
-  height: 14px;
-  background: #607b86;
+  left: 11px;
+  top: 2px;
+  width: 43px;
+  height: 16px;
+  background: linear-gradient(135deg, #78919b, #425a63);
   clip-path: polygon(50% 0, 100% 100%, 0 100%);
+  filter: drop-shadow(4px 3px 0 rgba(0, 0, 0, 0.24));
 }
 
 .model-powerhouse i {
-  right: 5px;
-  bottom: 5px;
-  width: 13px;
-  height: 13px;
+  right: 3px;
+  bottom: 9px;
+  width: 14px;
+  height: 14px;
   border: 3px solid #8ee4f1;
   border-radius: 50%;
   background: #267c94;
+  box-shadow: -15px 9px 0 -5px #5f7076;
 }
 
 .objective-panel {
@@ -668,24 +818,54 @@ h1 {
 .phase,
 .queue,
 .message {
-  margin: 10px 0 0;
+  margin: 0;
   color: rgba(247, 251, 255, 0.78);
-  font-size: 0.86rem;
+  font-size: 0.8rem;
   line-height: 1.35;
 }
 
+.phase,
+.queue {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .message {
+  margin-top: 7px;
   color: #7ee2c7;
 }
 
 .plan-summary {
-  margin-top: 14px;
-  padding: 12px;
-  border-radius: 6px;
-  background: rgba(255, 255, 255, 0.08);
+  margin-top: 8px;
 }
 
-.plan-summary h2 {
+.plan-summary summary {
+  width: fit-content;
+  color: rgba(247, 251, 255, 0.7);
+  cursor: pointer;
+  font-size: 0.76rem;
+  font-weight: 800;
+  line-height: 1.25;
+  text-transform: uppercase;
+}
+
+.plan-summary[open] summary {
+  color: #7ee2c7;
+}
+
+.plan-summary-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
+  gap: 14px;
+  margin-top: 8px;
+  padding-top: 9px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.plan-summary h2,
+.plan-summary h3 {
   margin: 0 0 8px;
   color: rgba(247, 251, 255, 0.72);
   font-size: 0.82rem;
@@ -694,11 +874,8 @@ h1 {
 }
 
 .plan-summary h3 {
-  margin: 12px 0 8px;
   color: rgba(247, 251, 255, 0.64);
   font-size: 0.74rem;
-  font-weight: 800;
-  text-transform: uppercase;
 }
 
 #pendingBuildList,
@@ -879,10 +1056,42 @@ h1 {
     max-height: calc(100vh - 20px);
   }
 
+  .commit-detail {
+    top: 10px;
+    left: calc(min(300px, calc(50vw - 15px)) + 20px);
+    right: calc(min(300px, calc(50vw - 15px)) + 20px);
+    max-height: 30vh;
+    padding: 10px 12px;
+  }
+
+  .commit-status {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+
+  .commit-header {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  #commitPlanButton {
+    width: 100%;
+  }
+
+  .plan-summary-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
   .construction-palette {
     bottom: 10px;
     max-width: calc(100vw - 20px);
     overflow-x: auto;
+  }
+
+  .map-controls {
+    right: calc(min(300px, calc(50vw - 15px)) + 20px);
+    bottom: 10px;
   }
 }
 
@@ -901,8 +1110,20 @@ h1 {
     max-height: 22vh;
   }
 
+  .commit-detail {
+    top: calc(28vh + 18px);
+    left: 10px;
+    right: 10px;
+    max-height: 22vh;
+  }
+
   .construction-palette {
     bottom: calc(22vh + 18px);
+  }
+
+  .map-controls {
+    right: 10px;
+    bottom: calc(22vh + 92px);
   }
 }
 
@@ -924,6 +1145,10 @@ h1 {
     max-height: 28vh;
   }
 
+  .commit-detail {
+    max-height: 20vh;
+  }
+
   .metrics,
   .controls {
     grid-template-columns: 1fr;
@@ -941,6 +1166,15 @@ h1 {
   }
 
   .palette-buttons button {
-    width: 74px;
+    width: 78px;
+    min-height: 80px;
+  }
+
+  .palette-buttons small {
+    font-size: 0.54rem;
+  }
+
+  .map-controls {
+    bottom: calc(22vh + 88px);
   }
 }

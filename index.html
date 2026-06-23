@@ -27,6 +27,35 @@
         </div>
       </section>
       <main id="viewport" aria-label="HydroStrategist 3D basin"></main>
+      <section class="commit-detail" aria-label="Current turn plan and commit details">
+        <div class="commit-header">
+          <div class="commit-status">
+            <p id="phaseLabel" class="phase">Planning</p>
+            <p id="modeLabel" class="phase">Mode: Build</p>
+            <p id="queueLabel" class="queue">Queued builds: 0</p>
+          </div>
+          <button id="commitPlanButton" type="button">Commit Plan</button>
+        </div>
+        <p id="messageLabel" class="message">Click a hex during Planning.</p>
+        <details class="plan-summary" aria-label="Queued build orders">
+          <summary>Turn detail</summary>
+          <section class="plan-summary-grid">
+            <div>
+              <h2>Turn Plan</h2>
+              <ol id="pendingBuildList">
+                <li class="empty-plan">No build orders queued</li>
+              </ol>
+              <p id="planCostLabel">Plan cost: 0 cr, 0 eng, 0 exc, 0 mix</p>
+            </div>
+            <div>
+              <h3>Under Construction</h3>
+              <ol id="activeConstructionList">
+                <li class="empty-plan">No active construction</li>
+              </ol>
+            </div>
+          </section>
+        </details>
+      </section>
       <aside class="hud" aria-label="Simulation controls">
         <header>
           <p class="eyebrow">HydroStrategist</p>
@@ -106,22 +135,6 @@
           <button id="resetButton" type="button">Reset Basin</button>
           <button id="menuButton" type="button">Menu</button>
           <button id="addTileModeButton" type="button">Add Tile Mode</button>
-          <button id="commitPlanButton" type="button">Commit Plan</button>
-        </section>
-        <p id="phaseLabel" class="phase">Planning</p>
-        <p id="modeLabel" class="phase">Mode: Build</p>
-        <p id="queueLabel" class="queue">Queued builds: 0</p>
-        <p id="messageLabel" class="message">Click a hex during Planning.</p>
-        <section class="plan-summary" aria-label="Queued build orders">
-          <h2>Turn Plan</h2>
-          <ol id="pendingBuildList">
-            <li class="empty-plan">No build orders queued</li>
-          </ol>
-          <p id="planCostLabel">Plan cost: 0 cr, 0 eng, 0 exc, 0 mix</p>
-          <h3>Under Construction</h3>
-          <ol id="activeConstructionList">
-            <li class="empty-plan">No active construction</li>
-          </ol>
         </section>
       </aside>
       <section id="turnRunner" class="turn-runner" aria-live="polite" hidden>
@@ -134,24 +147,37 @@
         </div>
         <p id="runnerDetailLabel">Solving basin water movement.</p>
       </section>
+      <section class="map-controls" aria-label="Map zoom controls">
+        <button id="zoomInButton" type="button" aria-label="Zoom in">+</button>
+        <button id="zoomOutButton" type="button" aria-label="Zoom out">-</button>
+        <button id="zoomFitButton" type="button" aria-label="Fit map">Fit</button>
+      </section>
+      <section id="tileTooltip" class="tile-tooltip" aria-live="polite" hidden>
+        <strong id="tileTooltipTitle">Cell</strong>
+        <span id="tileTooltipDetail">Tile details</span>
+      </section>
       <section id="constructionPalette" class="construction-palette" aria-label="Drag construction onto grid">
         <span class="palette-title">Build</span>
         <div class="palette-buttons">
-          <button data-drag-build-type="baseDam" type="button" draggable="true" title="Drag Base Dam onto a Water or Shore tile">
+          <button data-drag-build-type="baseDam" type="button" draggable="true" title="Base Dam: 220 credits, 2 turns. Water or Shore tile.">
             <span class="model-icon model-base-dam" aria-hidden="true"><i></i></span>
             <span>Base Dam</span>
+            <small>220 cr | 2 turns</small>
           </button>
-          <button data-drag-build-type="elevationDam" type="button" draggable="true" title="Drag Elevation onto an existing dam">
+          <button data-drag-build-type="elevationDam" type="button" draggable="true" title="Elevation: 160 credits, 1 turn. Existing dam required.">
             <span class="model-icon model-elevation" aria-hidden="true"><i></i></span>
             <span>Elevation</span>
+            <small>160 cr | 1 turn</small>
           </button>
-          <button data-drag-build-type="conduit" type="button" draggable="true" title="Drag Conduit onto a Land or Shore tile">
+          <button data-drag-build-type="conduit" type="button" draggable="true" title="Conduit: 140 credits, 1 turn. Land or Shore tile.">
             <span class="model-icon model-conduit" aria-hidden="true"><i></i></span>
             <span>Conduit</span>
+            <small>140 cr | 1 turn</small>
           </button>
-          <button data-drag-build-type="powerhouse" type="button" draggable="true" title="Drag Powerhouse onto a Land or Shore tile">
+          <button data-drag-build-type="powerhouse" type="button" draggable="true" title="Powerhouse: 260 credits, 3 turns. Land or Shore tile.">
             <span class="model-icon model-powerhouse" aria-hidden="true"><i></i></span>
             <span>Powerhouse</span>
+            <small>260 cr | 3 turns</small>
           </button>
         </div>
       </section>

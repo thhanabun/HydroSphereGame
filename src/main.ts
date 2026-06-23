@@ -93,6 +93,12 @@ const BUILD_STRUCTURE_KINDS: Readonly<Record<InfrastructureBuildType, number>> =
   conduit: StructureKind.conduit,
   powerhouse: StructureKind.powerhouse,
 };
+const BUILD_TYPE_BY_STRUCTURE_KIND: Readonly<Record<number, InfrastructureBuildType>> = {
+  [StructureKind.baseDam]: 'baseDam',
+  [StructureKind.elevationDam]: 'elevationDam',
+  [StructureKind.conduit]: 'conduit',
+  [StructureKind.powerhouse]: 'powerhouse',
+};
 const SANDBOX_SEASON_PATTERN: readonly Season[] = [
   'dry',
   'dry',
@@ -517,6 +523,35 @@ const createBuildMenuSnapshot = (cell: BasinRenderCell): BuildMenuSnapshot => {
   };
 };
 
+const showTileTooltip = (
+  cell: BasinRenderCell | undefined,
+  pointer: { readonly x: number; readonly y: number },
+): void => {
+  if (!cell) {
+    uiShell.hideTileTooltip();
+    return;
+  }
+
+  const details = [
+    getSurfaceLabel(cell.eid),
+    `Elev ${Terrain.elevation[cell.eid].toFixed(2)} m`,
+    `Water ${Water.depth[cell.eid].toFixed(2)} m`,
+    getStructureLabel(cell.eid),
+  ];
+
+  if (draggedBuildType) {
+    const validation = validateBuildRequest(cell.eid, draggedBuildType);
+
+    details.push(
+      validation.ok
+        ? `${BUILD_LABELS[draggedBuildType]} can be placed here`
+        : `${BUILD_LABELS[draggedBuildType]} blocked: ${validation.reason}`,
+    );
+  }
+
+  uiShell.showTileTooltip(`q${cell.q}, r${cell.r}`, details.join(' | '), pointer);
+};
+
 const getTurnResolutionHud = (
   phase: unknown,
   simulationTickIndex: number,
@@ -729,6 +764,7 @@ const uiShell = new UIShell({
   onBuildDragEnded: () => {
     draggedBuildType = undefined;
     hydroRenderer.setBuildPreview();
+    uiShell.hideTileTooltip();
   },
   onCancelBuildCommand: cancelBuildCommand,
   onAddTileDirectionSelected: addTileAdjacentToSelectedCell,
@@ -777,6 +813,12 @@ const createHydroRenderer = (): HydroRendererPort => {
     cells: renderCells,
     tileRadiusMeters: 1,
     maxCells: MAX_RENDER_CELLS,
+    canPreviewBuild: (cell, structureType) => {
+      const buildType = BUILD_TYPE_BY_STRUCTURE_KIND[structureType];
+
+      return buildType ? validateBuildRequest(cell.eid, buildType).ok : true;
+    },
+    onCellHovered: showTileTooltip,
     onCellDropped: (cell) => {
       if (!draggedBuildType) {
         return;
@@ -793,6 +835,7 @@ const createHydroRenderer = (): HydroRendererPort => {
 
       draggedBuildType = undefined;
       hydroRenderer.setBuildPreview();
+      uiShell.hideTileTooltip();
       queueBuild(buildType);
     },
     onCellDragged: (cell, direction) => {
@@ -878,6 +921,23 @@ const syncRendererCells = (): void =>
     (renderer) => renderer.setCells(renderCells),
     'Map renderer skipped one update; stage data and HUD are still loaded.',
   );
+
+const bindMapZoomControls = (): void => {
+  document.querySelector<HTMLButtonElement>('#zoomInButton')?.addEventListener('click', () =>
+    runRendererAction((renderer) => renderer.zoomIn(), 'Map zoom failed to update.'),
+  );
+  document.querySelector<HTMLButtonElement>('#zoomOutButton')?.addEventListener('click', () =>
+    runRendererAction((renderer) => renderer.zoomOut(), 'Map zoom failed to update.'),
+  );
+  document
+    .querySelector<HTMLButtonElement>('#zoomFitButton')
+    ?.addEventListener('click', () =>
+      runRendererAction(
+        (renderer) => renderer.fitMap(),
+        'Map fit failed to update.',
+      ),
+    );
+};
 
 const updateHudUnsafe = (stats: ShallowWaterSystemStats): void => {
   const snapshot = gameActor.getSnapshot();
@@ -1480,6 +1540,7 @@ function resetBasin(): void {
   uiShell.addEvent('Basin reset to the start of the current level.');
 }
 
+bindMapZoomControls();
 gameActor.start();
 uiShell.setLevel(SANDBOX_LEVEL);
 uiShell.addEvent(`Turn ${gameActor.getSnapshot().context.turn} planning opened.`);

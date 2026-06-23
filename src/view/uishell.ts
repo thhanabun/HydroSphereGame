@@ -153,6 +153,11 @@ export class UIShell {
   private readonly modeLabel = requireElement<HTMLElement>('#modeLabel');
   private readonly queueLabel = requireElement<HTMLElement>('#queueLabel');
   private readonly messageLabel = requireElement<HTMLElement>('#messageLabel');
+  private readonly tileTooltip = requireElement<HTMLElement>('#tileTooltip');
+  private readonly tileTooltipTitle =
+    requireElement<HTMLElement>('#tileTooltipTitle');
+  private readonly tileTooltipDetail =
+    requireElement<HTMLElement>('#tileTooltipDetail');
   private readonly pendingBuildList =
     requireElement<HTMLOListElement>('#pendingBuildList');
   private readonly activeConstructionList =
@@ -337,10 +342,10 @@ export class UIShell {
     const turnsResolved = snapshot.objectiveProgress.turn;
     const turnsRemaining = Math.max(0, snapshot.objectives.maxTurns - turnsResolved);
     this.phaseLabel.textContent = isSandbox
-      ? `Turn ${snapshot.turn} - Phase: ${formatPhase(snapshot.phase)}`
-      : `Turn ${snapshot.turn}/${snapshot.objectives.maxTurns} - Phase: ${formatPhase(
+      ? `Turn ${snapshot.turn} | ${formatPhase(snapshot.phase)}`
+      : `Turn ${snapshot.turn}/${snapshot.objectives.maxTurns} | ${formatPhase(
           snapshot.phase,
-        )} - ${turnsRemaining} turn(s) left`;
+        )} | ${turnsRemaining} left`;
     this.modeLabel.textContent = `Mode: ${snapshot.mode === 'build' ? 'Build' : 'Add Tile'}`;
     this.addTileModeButton.classList.toggle('is-active', snapshot.mode === 'addTile');
     this.stormButton.hidden = !snapshot.canUseStormPulse;
@@ -363,6 +368,33 @@ export class UIShell {
 
   public setMessage(message: string): void {
     this.messageLabel.textContent = message;
+  }
+
+  public showTileTooltip(
+    title: string,
+    detail: string,
+    pointer: { readonly x: number; readonly y: number },
+  ): void {
+    this.tileTooltipTitle.textContent = title;
+    this.tileTooltipDetail.textContent = detail;
+    this.tileTooltip.hidden = false;
+
+    const tooltipBounds = this.tileTooltip.getBoundingClientRect();
+    const left = Math.min(
+      window.innerWidth - tooltipBounds.width - 12,
+      pointer.x + 14,
+    );
+    const top = Math.min(
+      window.innerHeight - tooltipBounds.height - 12,
+      pointer.y + 14,
+    );
+
+    this.tileTooltip.style.left = `${Math.max(12, left)}px`;
+    this.tileTooltip.style.top = `${Math.max(12, top)}px`;
+  }
+
+  public hideTileTooltip(): void {
+    this.tileTooltip.hidden = true;
   }
 
   public showBuildMenu(
