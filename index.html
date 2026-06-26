@@ -13,6 +13,7 @@
           <h1>Basin Command</h1>
           <div class="menu-actions">
             <button id="sandboxModeButton" type="button">Sandbox Mode</button>
+            <button id="howToPlayButton" type="button">How to play?</button>
           </div>
           <h2>Campaign Levels</h2>
           <div class="level-list">
@@ -24,6 +25,116 @@
             <button data-level-id="level-6" type="button">6. Twin Tributaries - 8 turns</button>
             <button data-level-id="level-7" type="button">7. Great River - 9 turns</button>
           </div>
+        </div>
+      </section>
+      <section id="howToPlayOverlay" class="how-to-play" aria-label="How to play guide" hidden>
+        <div class="how-panel">
+          <header class="how-header">
+            <div>
+              <p class="eyebrow">HydroStrategist</p>
+              <h2>How to play?</h2>
+            </div>
+            <button id="closeHowToPlayButton" type="button">Back</button>
+          </header>
+          <section id="uiMapGuide" class="ui-map-guide" aria-label="Annotated game screen map" data-guide-step="resources">
+            <div class="guide-screen" aria-hidden="true">
+              <div class="screen-hud">
+                <strong>River Basin Prototype</strong>
+                <span>Weather</span>
+                <span>Credits 620</span>
+                <span>Stored Water 0 m3</span>
+                <span>Net Income +0</span>
+                <span>Hydropower 0</span>
+                <span>Irrigation 0</span>
+                <span>Sustainability 100</span>
+              </div>
+              <div class="screen-commit">
+                <span>Turn 1/5 | planning Phase | 5 left</span>
+                <span>Queued builds: 1</span>
+                <strong>Commit Turn 1</strong>
+                <small>Turn detail: Base Dam queued for q0, r0.</small>
+              </div>
+              <div class="screen-map">
+                <span class="guide-hex water"></span>
+                <span class="guide-hex shore"></span>
+                <span class="guide-hex land"></span>
+                <span class="guide-hex water deep"></span>
+                <span class="guide-hex land"></span>
+                <span class="guide-hex shore"></span>
+              </div>
+              <div class="screen-objectives">
+                <strong>1. First Reservoir</strong>
+                <span>Turn limit: 5 resolved turns</span>
+                <span>Build Base Dams 0/1</span>
+                <span>Water Storage 0/80 m3</span>
+                <span>Credits 620/300 [done]</span>
+              </div>
+              <div class="screen-build">
+                <span>Base Dam</span>
+                <span>Elevation</span>
+                <span>Conduit</span>
+                <span>Powerhouse</span>
+              </div>
+            </div>
+            <div class="guide-ring ring-resources">
+              <span>Resources</span>
+              <div class="ring-focus focus-resources" aria-hidden="true">
+                <strong>River Basin Prototype</strong>
+                <em>Weather Sunny</em>
+                <em>Credits 620</em>
+                <em>Stored Water 0 m3</em>
+                <em>Net Income +0</em>
+                <em>Hydropower 0</em>
+                <em>Sustainability 100</em>
+              </div>
+              <small>Credits, water, income, power, ecology, workers, and available machinery.</small>
+            </div>
+            <div class="guide-ring ring-commit">
+              <span>Commit Detail</span>
+              <div class="ring-focus focus-commit" aria-hidden="true">
+                <em>Turn 1/5 | planning Phase | 5 left</em>
+                <em>Queued builds: 1</em>
+                <strong>Commit Turn 1</strong>
+                <em>Turn detail: Base Dam queued for q0, r0.</em>
+              </div>
+              <small>Check queued work, remaining build turns, then commit to resolve the turn.</small>
+            </div>
+            <div class="guide-ring ring-map">
+              <span>Map</span>
+              <div class="ring-focus focus-map" aria-hidden="true">
+                <i class="guide-hex water"></i>
+                <i class="guide-hex shore"></i>
+                <i class="guide-hex land"></i>
+                <i class="guide-hex water deep"></i>
+              </div>
+              <small>Tile color shows land, shore, water, and deeper blue water depth.</small>
+            </div>
+            <div class="guide-ring ring-objectives">
+              <span>Objectives</span>
+              <div class="ring-focus focus-objectives" aria-hidden="true">
+                <strong>1. First Reservoir</strong>
+                <em>Turn limit: 5 resolved turns</em>
+                <em>Build Base Dams 0/1</em>
+                <em>Water Storage 0/80 m3</em>
+              </div>
+              <small>Complete every listed condition before the turn limit expires.</small>
+            </div>
+            <div class="guide-ring ring-build">
+              <span>Build</span>
+              <div class="ring-focus focus-build" aria-hidden="true">
+                <em>Base Dam</em>
+                <em>Elevation</em>
+                <em>Conduit</em>
+                <em>Powerhouse</em>
+              </div>
+              <small>Drag models onto hexes. Green means valid placement; red means blocked.</small>
+            </div>
+          </section>
+          <nav class="guide-tour-controls" aria-label="How to play steps">
+            <button id="guidePrevButton" type="button">Previous</button>
+            <span id="guideStepIndicator">1 / 5 - Resources</span>
+            <button id="guideNextButton" type="button">Next</button>
+          </nav>
         </div>
       </section>
       <main id="viewport" aria-label="HydroStrategist 3D basin"></main>

@@ -48,6 +48,7 @@ The prototype starts from the mode menu. Campaign levels use authored maps and f
 Mode select:
 
 - `Sandbox Mode`: open-ended basin editing and simulation.
+- `How to play?`: labeled interface guide for map, resources, construction, commit detail, and objectives.
 - `Campaign Levels`: seven objective-based scenarios with turn limits.
 
 Basic play loop:

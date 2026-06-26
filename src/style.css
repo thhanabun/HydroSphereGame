@@ -120,6 +120,506 @@ button.is-active {
   white-space: normal;
 }
 
+.how-to-play {
+  position: absolute;
+  inset: 0;
+  z-index: 22;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(7, 16, 23, 0.78);
+  backdrop-filter: blur(16px);
+}
+
+.how-to-play[hidden] {
+  display: none;
+}
+
+.how-panel {
+  width: min(1100px, 100%);
+  max-height: calc(100vh - 48px);
+  padding: 18px;
+  overflow: auto;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 8px;
+  background: rgba(9, 24, 31, 0.96);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.42);
+}
+
+.how-header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.how-header h2 {
+  margin: 0;
+  font-size: 1.55rem;
+  line-height: 1.15;
+}
+
+.ui-map-guide {
+  position: relative;
+  min-height: 540px;
+  padding: 14px;
+  overflow: hidden;
+  border: 1px solid rgba(126, 226, 199, 0.2);
+  border-radius: 8px;
+  background:
+    radial-gradient(circle at 50% 48%, rgba(35, 122, 150, 0.16), transparent 46%),
+    #0a1a22;
+}
+
+.guide-screen {
+  position: absolute;
+  inset: 14px;
+  display: grid;
+  grid-template-columns: 24% 1fr 23%;
+  grid-template-rows: 30% 1fr 18%;
+  gap: 16px;
+  opacity: 0.22;
+  filter: saturate(0.9);
+  pointer-events: none;
+}
+
+.guide-screen > div {
+  min-width: 0;
+  border: 1px solid rgba(126, 226, 199, 0.2);
+  border-radius: 8px;
+  background: rgba(7, 16, 23, 0.86);
+}
+
+.screen-hud {
+  grid-row: 1 / span 3;
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  padding: 18px;
+}
+
+.screen-hud strong,
+.screen-objectives strong {
+  color: #f7fbff;
+  font-size: 1rem;
+}
+
+.screen-hud span {
+  min-height: 34px;
+  padding: 9px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.09);
+  color: rgba(247, 251, 255, 0.8);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.screen-commit {
+  grid-column: 2;
+  grid-row: 1;
+  display: grid;
+  grid-template-columns: 1fr 0.7fr auto;
+  gap: 12px;
+  align-items: start;
+  padding: 14px;
+}
+
+.screen-commit span,
+.screen-commit small {
+  color: rgba(247, 251, 255, 0.82);
+  font-size: 0.76rem;
+  line-height: 1.25;
+}
+
+.screen-commit small {
+  grid-column: 1 / -1;
+  color: #7ee2c7;
+}
+
+.screen-commit strong {
+  padding: 12px;
+  border-radius: 6px;
+  background: rgba(42, 143, 121, 0.92);
+  color: #f7fbff;
+  text-align: center;
+}
+
+.screen-map {
+  grid-column: 2;
+  grid-row: 2;
+  position: relative;
+  background:
+    radial-gradient(circle at 51% 54%, rgba(81, 177, 213, 0.14), transparent 34%),
+    rgba(8, 47, 62, 0.72) !important;
+}
+
+.screen-objectives {
+  grid-column: 3;
+  grid-row: 1 / span 2;
+  display: grid;
+  align-content: start;
+  gap: 11px;
+  padding: 16px;
+}
+
+.screen-objectives span {
+  color: rgba(247, 251, 255, 0.8);
+  font-size: 0.74rem;
+  line-height: 1.25;
+}
+
+.screen-build {
+  grid-column: 2;
+  grid-row: 3;
+  align-self: end;
+  justify-self: center;
+  display: flex;
+  gap: 8px;
+  width: fit-content;
+  padding: 10px;
+}
+
+.screen-build span {
+  display: grid;
+  place-items: end center;
+  width: 82px;
+  height: 62px;
+  padding: 7px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.09);
+  color: rgba(247, 251, 255, 0.86);
+  font-size: 0.68rem;
+  font-weight: 900;
+}
+
+.guide-hex {
+  position: absolute;
+  width: 82px;
+  height: 47px;
+  clip-path: polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%);
+  background: #7b8450;
+  box-shadow: 0 7px 0 rgba(0, 0, 0, 0.34);
+}
+
+.guide-hex.water {
+  background: #46b7f0;
+}
+
+.guide-hex.water.deep {
+  background: #236ebd;
+}
+
+.guide-hex.shore {
+  background: #d3bd6d;
+}
+
+.guide-hex.land {
+  background: #808852;
+}
+
+.guide-hex:nth-of-type(1) {
+  left: 44%;
+  top: 34%;
+}
+
+.guide-hex:nth-of-type(2) {
+  left: 50%;
+  top: 27%;
+}
+
+.guide-hex:nth-of-type(3) {
+  left: 56%;
+  top: 34%;
+}
+
+.guide-hex:nth-of-type(4) {
+  left: 50%;
+  top: 42%;
+}
+
+.guide-hex:nth-of-type(5) {
+  left: 44%;
+  top: 50%;
+}
+
+.guide-hex:nth-of-type(6) {
+  left: 56%;
+  top: 50%;
+}
+
+.guide-ring {
+  position: absolute;
+  z-index: 2;
+  display: none;
+  align-content: start;
+  justify-items: start;
+  gap: 6px;
+  width: 230px;
+  padding: 0;
+  color: #f7fbff;
+}
+
+.ui-map-guide[data-guide-step="resources"] .ring-resources,
+.ui-map-guide[data-guide-step="commit"] .ring-commit,
+.ui-map-guide[data-guide-step="map"] .ring-map,
+.ui-map-guide[data-guide-step="objectives"] .ring-objectives,
+.ui-map-guide[data-guide-step="build"] .ring-build {
+  display: grid;
+}
+
+.guide-ring::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: var(--ring-y, 0) auto auto var(--ring-x, 0);
+  width: var(--ring-w, 120px);
+  height: var(--ring-h, 120px);
+  border: 4px solid rgba(255, 226, 112, 0.95);
+  border-radius: var(--ring-radius, 24px);
+  box-shadow:
+    0 0 0 999px rgba(7, 16, 23, 0.28),
+    0 0 26px rgba(255, 226, 112, 0.34);
+}
+
+.guide-ring span {
+  position: relative;
+  z-index: 3;
+  width: fit-content;
+  padding: 5px 8px;
+  border-radius: 6px;
+  background: rgba(7, 16, 23, 0.86);
+  color: #ffe270;
+  font-size: 0.78rem;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.guide-ring small {
+  position: relative;
+  z-index: 3;
+  max-width: 180px;
+  padding: 7px 8px;
+  border-radius: 6px;
+  background: rgba(7, 16, 23, 0.86);
+  color: rgba(247, 251, 255, 0.86);
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.32;
+}
+
+.ring-focus {
+  position: absolute;
+  z-index: 1;
+  display: grid;
+  gap: 8px;
+  overflow: hidden;
+  padding: 14px;
+  border-radius: calc(var(--ring-radius, 24px) - 8px);
+  background: rgba(7, 16, 23, 0.92);
+  box-shadow: inset 0 0 0 1px rgba(126, 226, 199, 0.12);
+  pointer-events: none;
+}
+
+.ring-focus strong,
+.ring-focus em {
+  display: block;
+  margin: 0;
+  font-style: normal;
+  line-height: 1.2;
+}
+
+.ring-focus strong {
+  color: #f7fbff;
+  font-size: 0.86rem;
+  font-weight: 900;
+}
+
+.ring-focus em {
+  padding: 7px 8px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(247, 251, 255, 0.82);
+  font-size: 0.68rem;
+  font-weight: 800;
+}
+
+.focus-resources {
+  left: 18px;
+  top: 18px;
+  width: 250px;
+  height: 430px;
+}
+
+.focus-commit {
+  left: 0;
+  top: 0;
+  grid-template-columns: 1fr 0.55fr auto;
+  width: 520px;
+  height: 118px;
+}
+
+.focus-commit strong {
+  padding: 10px;
+  border-radius: 6px;
+  background: rgba(42, 143, 121, 0.95);
+  font-size: 0.78rem;
+  text-align: center;
+}
+
+.focus-commit em:last-child {
+  grid-column: 1 / -1;
+  color: #7ee2c7;
+}
+
+.focus-map {
+  left: 0;
+  top: 0;
+  width: 245px;
+  height: 160px;
+  background:
+    radial-gradient(circle at 50% 48%, rgba(81, 177, 213, 0.2), transparent 56%),
+    rgba(7, 30, 40, 0.94);
+}
+
+.focus-map .guide-hex {
+  width: 78px;
+  height: 45px;
+  box-shadow: 0 7px 0 rgba(0, 0, 0, 0.34);
+}
+
+.focus-map .guide-hex:nth-child(1) {
+  left: 42px;
+  top: 44px;
+}
+
+.focus-map .guide-hex:nth-child(2) {
+  left: 104px;
+  top: 14px;
+}
+
+.focus-map .guide-hex:nth-child(3) {
+  left: 126px;
+  top: 52px;
+}
+
+.focus-map .guide-hex:nth-child(4) {
+  left: 92px;
+  top: 84px;
+}
+
+.focus-objectives {
+  left: 0;
+  top: 0;
+  width: 255px;
+  height: 310px;
+}
+
+.focus-build {
+  left: 0;
+  top: 0;
+  grid-template-columns: repeat(4, 1fr);
+  align-content: center;
+  width: 410px;
+  height: 110px;
+}
+
+.focus-build em {
+  display: grid;
+  place-items: end center;
+  min-height: 70px;
+  padding: 8px;
+  text-align: center;
+}
+
+.ring-resources {
+  --ring-x: 0;
+  --ring-y: 0;
+  --ring-w: 274px;
+  --ring-h: 454px;
+  --ring-radius: 18px;
+  left: 18px;
+  top: 18px;
+  padding-top: 380px;
+  padding-left: 16px;
+}
+
+.ring-commit {
+  --ring-x: 0;
+  --ring-y: 0;
+  --ring-w: 544px;
+  --ring-h: 142px;
+  --ring-radius: 20px;
+  left: 29%;
+  top: 18px;
+  width: 544px;
+  padding-top: 104px;
+  padding-left: 16px;
+}
+
+.ring-map {
+  --ring-x: 0;
+  --ring-y: 0;
+  --ring-w: 269px;
+  --ring-h: 184px;
+  --ring-radius: 50%;
+  left: 45%;
+  top: 38%;
+  width: 269px;
+  padding-top: 134px;
+  padding-left: 22px;
+}
+
+.ring-objectives {
+  --ring-x: 0;
+  --ring-y: 0;
+  --ring-w: 279px;
+  --ring-h: 334px;
+  --ring-radius: 20px;
+  right: 34px;
+  top: 36px;
+  width: 279px;
+  padding-top: 244px;
+  padding-left: 18px;
+}
+
+.ring-build {
+  --ring-x: 0;
+  --ring-y: 0;
+  --ring-w: 434px;
+  --ring-h: 134px;
+  --ring-radius: 20px;
+  left: 43%;
+  bottom: 18px;
+  width: 434px;
+  padding-top: 96px;
+  padding-left: 18px;
+}
+
+.guide-tour-controls {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.guide-tour-controls span {
+  min-width: 0;
+  padding: 9px 12px;
+  border: 1px solid rgba(126, 226, 199, 0.2);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.07);
+  color: rgba(247, 251, 255, 0.86);
+  font-size: 0.82rem;
+  font-weight: 800;
+  text-align: center;
+}
+
+.guide-tour-controls button {
+  min-width: 112px;
+}
+
 .hud {
   position: absolute;
   top: 18px;
@@ -1040,6 +1540,18 @@ h1 {
 }
 
 @media (max-width: 980px) {
+  .ui-map-guide {
+    min-height: 500px;
+  }
+
+  .ring-commit {
+    left: 30%;
+  }
+
+  .ring-map {
+    left: 43%;
+  }
+
   .hud {
     top: 10px;
     left: 10px;
@@ -1130,6 +1642,24 @@ h1 {
 @media (max-width: 560px) {
   .main-menu {
     padding: 14px;
+  }
+
+  .how-to-play {
+    padding: 14px;
+  }
+
+  .how-panel {
+    max-height: calc(100vh - 28px);
+    padding: 14px;
+  }
+
+  .how-header {
+    display: grid;
+  }
+
+  .ui-map-guide {
+    min-width: 820px;
+    min-height: 500px;
   }
 
   .menu-panel {

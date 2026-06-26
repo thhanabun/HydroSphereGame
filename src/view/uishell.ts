@@ -123,12 +123,34 @@ const formatWeather = (weather: WeatherState): string =>
 const formatPhase = (phase: unknown): string =>
   String(phase).replace(/[A-Z]/g, (letter) => ` ${letter}`);
 
+const GUIDE_STEPS = [
+  { id: 'resources', label: 'Resources' },
+  { id: 'commit', label: 'Commit Detail' },
+  { id: 'map', label: 'Map' },
+  { id: 'objectives', label: 'Objectives' },
+  { id: 'build', label: 'Build Palette' },
+] as const;
+
 export class UIShell {
   private readonly mainMenu = requireElement<HTMLElement>('#mainMenu');
   private readonly hudPanel = requireElement<HTMLElement>('.hud');
   private readonly taskPanel = requireElement<HTMLElement>('.task-panel');
   private readonly sandboxModeButton =
     requireElement<HTMLButtonElement>('#sandboxModeButton');
+  private readonly howToPlayButton =
+    requireElement<HTMLButtonElement>('#howToPlayButton');
+  private readonly howToPlayOverlay =
+    requireElement<HTMLElement>('#howToPlayOverlay');
+  private readonly uiMapGuide = requireElement<HTMLElement>('#uiMapGuide');
+  private readonly closeHowToPlayButton = requireElement<HTMLButtonElement>(
+    '#closeHowToPlayButton',
+  );
+  private readonly guidePrevButton =
+    requireElement<HTMLButtonElement>('#guidePrevButton');
+  private readonly guideNextButton =
+    requireElement<HTMLButtonElement>('#guideNextButton');
+  private readonly guideStepIndicator =
+    requireElement<HTMLElement>('#guideStepIndicator');
   private readonly levelButtons = Array.from(
     document.querySelectorAll<HTMLButtonElement>('[data-level-id]'),
   );
@@ -227,6 +249,7 @@ export class UIShell {
     requireElement<HTMLButtonElement>('#outcomeMenuButton');
   private interactionLocked = false;
   private outcomePrimaryAction: OutcomeActionOptions['primaryAction'] = 'retry';
+  private guideStepIndex = 0;
   private readonly buildOptionBlocked: Record<InfrastructureBuildType, boolean> = {
     baseDam: false,
     elevationDam: false,
@@ -236,6 +259,30 @@ export class UIShell {
 
   public constructor(callbacks: UIShellCallbacks) {
     this.sandboxModeButton.addEventListener('click', callbacks.onSandboxSelected);
+    this.howToPlayButton.addEventListener('click', () => {
+      this.howToPlayOverlay.hidden = false;
+      this.howToPlayOverlay.tabIndex = -1;
+      this.setGuideStep(0);
+      this.howToPlayOverlay.focus();
+    });
+    this.closeHowToPlayButton.addEventListener('click', () => {
+      this.howToPlayOverlay.hidden = true;
+    });
+    this.guidePrevButton.addEventListener('click', () => {
+      this.setGuideStep(this.guideStepIndex - 1);
+    });
+    this.guideNextButton.addEventListener('click', () => {
+      this.setGuideStep(this.guideStepIndex + 1);
+    });
+    this.howToPlayOverlay.addEventListener('keydown', (event) => {
+      if (event.key === 'ArrowLeft') {
+        event.preventDefault();
+        this.setGuideStep(this.guideStepIndex - 1);
+      } else if (event.key === 'ArrowRight') {
+        event.preventDefault();
+        this.setGuideStep(this.guideStepIndex + 1);
+      }
+    });
     for (const button of this.levelButtons) {
       button.addEventListener('click', () => {
         const levelId = button.dataset.levelId;
@@ -310,6 +357,20 @@ export class UIShell {
     this.buildPowerhouseButton.addEventListener('click', () =>
       callbacks.onBuildSelected('powerhouse'),
     );
+  }
+
+  private setGuideStep(nextIndex: number): void {
+    const clampedIndex = Math.min(
+      GUIDE_STEPS.length - 1,
+      Math.max(0, nextIndex),
+    );
+    const step = GUIDE_STEPS[clampedIndex];
+
+    this.guideStepIndex = clampedIndex;
+    this.uiMapGuide.dataset.guideStep = step.id;
+    this.guideStepIndicator.textContent = `${clampedIndex + 1} / ${GUIDE_STEPS.length} - ${step.label}`;
+    this.guidePrevButton.disabled = clampedIndex === 0;
+    this.guideNextButton.disabled = clampedIndex === GUIDE_STEPS.length - 1;
   }
 
   public updateHud(snapshot: SimulationHudSnapshot): void {

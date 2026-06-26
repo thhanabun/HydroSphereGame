@@ -14,11 +14,12 @@ HydroStrategist is a browser-based water resource management strategy game. Plan
 
 ## How To Play
 
-1. Select Sandbox or a campaign level.
-2. During the Planning Phase, drag a construction model from the bottom toolbar onto a valid hex.
-3. Queue any additional construction that your credits, engineers, and machinery allow.
-4. Read the compact turn panel above the map, then select **Commit Turn** to resolve construction, weather, water flow, income, and objectives.
-5. Meet every campaign objective before the turn limit expires.
+1. Select **How to play?** from the menu when you want a labeled map of the interface.
+2. Select Sandbox or a campaign level.
+3. During the Planning Phase, drag a construction model from the bottom toolbar onto a valid hex.
+4. Queue any additional construction that your credits, engineers, and machinery allow.
+5. Read the compact turn panel above the map, then select **Commit Turn** to resolve construction, weather, water flow, income, and objectives.
+6. Meet every campaign objective before the turn limit expires.
 
 Only **Commit Turn** advances and resolves a turn. Campaign weather is fixed per turn, while Sandbox weather follows seasonal patterns.
 
@@ -116,4 +117,4 @@ scripts/
 
 ## Status
 
-HydroStrategist is a playable prototype with seven audited campaign levels, Sandbox expansion, construction delays, map zoom/pan/fit, placement validation, WebGL fallback rendering, and automated GitHub Pages deployment. Campaign balance, simulation depth, visual clarity, and onboarding remain active areas of development.
+HydroStrategist is a playable prototype with seven audited campaign levels, a How to play guide, Sandbox expansion, construction delays, map zoom/pan/fit, placement validation, WebGL fallback rendering, and automated GitHub Pages deployment. Campaign balance, simulation depth, visual clarity, and onboarding remain active areas of development.
